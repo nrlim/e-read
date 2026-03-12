@@ -21,6 +21,11 @@ export const metadata: Metadata = {
     description: "An immersive, warm-light digital reading experience.",
     type: "website",
   },
+  twitter: {
+    card: "summary_large_image",
+    title: "e-Read — Your Personal Digital Library",
+    description: "An immersive, warm-light digital reading experience.",
+  },
 };
 
 export const viewport: Viewport = {
