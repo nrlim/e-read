@@ -1,0 +1,32 @@
+import type { MetadataRoute } from "next";
+
+export default function manifest(): MetadataRoute.Manifest {
+    return {
+        name: "e-Read — Personal Digital Library",
+        short_name: "e-Read",
+        description: "Your immersive personal digital library",
+        start_url: "/",
+        display: "standalone",
+        background_color: "#F9F7F2",
+        theme_color: "#F9F7F2",
+        orientation: "portrait",
+        icons: [
+            {
+                src: "/icons/eread-logo.png",
+                sizes: "192x192",
+                type: "image/png",
+            },
+            {
+                src: "/icons/eread-logo.png",
+                sizes: "512x512",
+                type: "image/png",
+            },
+            {
+                src: "/icons/eread-logo.png",
+                sizes: "512x512",
+                type: "image/png",
+                purpose: "maskable",
+            },
+        ],
+    };
+}

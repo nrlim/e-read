@@ -1,0 +1,59 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id                 String   @id @default(cuid())
+  email              String   @unique
+  password           String
+  name               String?
+  avatar             String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  books              Book[]
+  sessions           Session[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Book {
+  id          String        @id @default(cuid())
+  title       String
+  author      String?
+  coverUrl    String?
+  fileUrl     String
+  provider    CloudProvider
+  currentPage Int           @default(0)
+  totalPages  Int?
+  fileSize    Int?
+  mimeType    String?
+  tags        String[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  userId      String
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+enum CloudProvider {
+  GDRIVE
+  ONEDRIVE
+  LOCAL
+}
