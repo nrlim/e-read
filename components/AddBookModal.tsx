@@ -2,21 +2,25 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { X, Link as LinkIcon, Upload, HardDrive } from "lucide-react";
-import type { Book } from "@/lib/types";
+import { X, Link as LinkIcon, Upload, ChevronDown } from "lucide-react";
+import type { Book, BookCategory } from "@/lib/types";
 
 const providers = [
     {
         id: "GDRIVE",
         name: "Google Drive",
-        icon: () => (
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4285F4" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 2L2 19h20L12 2z" />
-                <line x1="9" y1="13" x2="15" y2="13" />
-            </svg>
-        ),
         placeholder: "https://drive.google.com/file/d/FILE_ID/view",
     },
+];
+
+export const CATEGORY_OPTIONS: { value: BookCategory; label: string; subtitle: string }[] = [
+    { value: "SELF_DEVELOPMENT",   label: "Self Development",      subtitle: "Motivation, Psychology, Mindset" },
+    { value: "FINANCE_INVESTMENT", label: "Finance & Investment",  subtitle: "Business, Forex, Crypto" },
+    { value: "TECHNOLOGY_AI",      label: "Technology & AI",       subtitle: "AI, Programming" },
+    { value: "LANGUAGE_SKILLS",    label: "Language & Skills",     subtitle: "English, Foreign Languages" },
+    { value: "LITERATURE_FICTION", label: "Literature & Fiction",  subtitle: "Novels, Literature" },
+    { value: "SPIRITUALITY",       label: "Spirituality",          subtitle: "Religious / Muslim content" },
+    { value: "OTHERS",             label: "Others",                subtitle: "Random / Uncategorized" },
 ];
 
 interface AddBookModalProps {
@@ -30,6 +34,7 @@ export default function AddBookModal({ onClose, onAdded }: AddBookModalProps) {
         title: "",
         author: "",
         fileUrl: "",
+        category: "" as BookCategory | "",
     });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
@@ -46,7 +51,13 @@ export default function AddBookModal({ onClose, onAdded }: AddBookModalProps) {
             const res = await fetch("/api/books", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ ...form, provider }),
+                body: JSON.stringify({
+                    title: form.title,
+                    author: form.author,
+                    fileUrl: form.fileUrl,
+                    provider,
+                    category: form.category || null,
+                }),
             });
             const data = await res.json();
             if (!res.ok) {
@@ -110,7 +121,6 @@ export default function AddBookModal({ onClose, onAdded }: AddBookModalProps) {
                         pointerEvents: "auto",
                     }}
                 >
-
                     {/* Header */}
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
                         <h2 style={{ fontFamily: "var(--font-serif)", fontSize: 22, color: "var(--color-ink)" }}>
@@ -130,7 +140,6 @@ export default function AddBookModal({ onClose, onAdded }: AddBookModalProps) {
                             <X size={16} strokeWidth={1.5} />
                         </button>
                     </div>
-
 
                     {/* Form */}
                     <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -168,6 +177,58 @@ export default function AddBookModal({ onClose, onAdded }: AddBookModalProps) {
                                 onChange={e => setForm(f => ({ ...f, author: e.target.value }))}
                                 placeholder="Author name (optional)"
                             />
+                        </FieldGroup>
+
+                        {/* Category */}
+                        <FieldGroup label="Category" id="add-category">
+                            <div style={{ position: "relative" }}>
+                                <select
+                                    id="add-category"
+                                    value={form.category}
+                                    onChange={e => setForm(f => ({ ...f, category: e.target.value as BookCategory | "" }))}
+                                    style={{
+                                        width: "100%",
+                                        appearance: "none",
+                                        background: "#FFFDF9",
+                                        border: "1px solid var(--color-border)",
+                                        borderRadius: "var(--radius-md)",
+                                        padding: "0 42px 0 14px",
+                                        height: 44,
+                                        fontSize: 14,
+                                        color: form.category ? "#1A1A1A" : "var(--color-text-faint)",
+                                        cursor: "pointer",
+                                        outline: "none",
+                                        transition: "border-color 0.15s ease, box-shadow 0.15s ease",
+                                    }}
+                                    onFocus={e => {
+                                        e.currentTarget.style.borderColor = "var(--color-accent)";
+                                        e.currentTarget.style.boxShadow = "0 0 0 3px rgba(var(--color-accent-rgb),0.12)";
+                                    }}
+                                    onBlur={e => {
+                                        e.currentTarget.style.borderColor = "var(--color-border)";
+                                        e.currentTarget.style.boxShadow = "none";
+                                    }}
+                                >
+                                    <option value="">Select a category</option>
+                                    {CATEGORY_OPTIONS.map(opt => (
+                                        <option key={opt.value} value={opt.value}>
+                                            {opt.label} — {opt.subtitle}
+                                        </option>
+                                    ))}
+                                </select>
+                                <ChevronDown
+                                    size={16}
+                                    strokeWidth={1.5}
+                                    style={{
+                                        position: "absolute",
+                                        right: 14,
+                                        top: "50%",
+                                        transform: "translateY(-50%)",
+                                        color: "var(--color-text-faint)",
+                                        pointerEvents: "none",
+                                    }}
+                                />
+                            </div>
                         </FieldGroup>
 
                         <FieldGroup label={`File URL (${selectedProvider.name})`} id="add-fileurl">

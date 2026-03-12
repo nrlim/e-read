@@ -1,6 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,500&family=Inter:wght@300;400;500;600&family=Instrument+Sans:wght@400;500;600&display=swap');
 
 @import "tailwindcss";
+@source "../components";
 
 /* ─── Design Tokens ─────────────────────────────────── */
 :root {
@@ -165,6 +166,15 @@ h5 {
 .divider {
   height: 1px;
   background: linear-gradient(90deg, transparent, var(--color-border), transparent);
+}
+
+/* Hide scrollbar (for chip filter bar etc.) */
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
 }
 
 /* End Utilities */

@@ -17,6 +17,7 @@ model User {
   password           String
   name               String?
   avatar             String?
+  role               UserRole @default(MEMBER)
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
   books              Book[]
@@ -44,6 +45,7 @@ model Book {
   fileSize    Int?
   mimeType    String?
   tags        String[]
+  category    BookCategory?
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
   userId      String
@@ -52,8 +54,24 @@ model Book {
   @@index([userId])
 }
 
+enum UserRole {
+  HEAD
+  LEAD
+  MEMBER
+}
+
 enum CloudProvider {
   GDRIVE
   ONEDRIVE
   LOCAL
+}
+
+enum BookCategory {
+  SELF_DEVELOPMENT
+  FINANCE_INVESTMENT
+  TECHNOLOGY_AI
+  LANGUAGE_SKILLS
+  LITERATURE_FICTION
+  SPIRITUALITY
+  OTHERS
 }

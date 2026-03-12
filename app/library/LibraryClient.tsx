@@ -4,10 +4,135 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { BookOpen, Plus, LogOut, Search, Grid3X3, List, Cloud, FileText } from "lucide-react";
-import type { Book, User } from "@/lib/types";
+import { BookOpen, Plus, Search, Grid3X3, List } from "lucide-react";
+import type { Book, BookCategory, User, UserRole } from "@/lib/types";
+import { canAddBook } from "@/lib/types";
 import { formatBytes, truncate } from "@/lib/utils";
-import AddBookModal from "@/components/AddBookModal";
+import AddBookModal, { CATEGORY_OPTIONS } from "@/components/AddBookModal";
+import { ProfileDrawer } from "@/components/ProfileDrawer";
+
+/* ── Cover Fallback Helpers ─────────────────────────── */
+
+/** Derive a stable hue (0-360) from a string */
+function titleToHue(title: string): number {
+    let hash = 0;
+    for (let i = 0; i < title.length; i++) {
+        hash = title.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return Math.abs(hash) % 360;
+}
+
+/** Get 1-2 initials from a title */
+function titleInitials(title: string): string {
+    const words = title.trim().split(/\s+/).filter(Boolean);
+    if (words.length === 0) return "?";
+    if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+    return (words[0][0] + words[1][0]).toUpperCase();
+}
+
+/**
+ * Renders the book cover image with automatic fallback to a
+ * styled initials-card when the URL is missing or returns an error (e.g. 404).
+ */
+function BookCover({
+    book,
+    width,
+    height,
+    fontSize = 28,
+}: {
+    book: Book;
+    width?: number | string;
+    height?: number | string;
+    fontSize?: number;
+}) {
+    const [imgError, setImgError] = useState(false);
+    const showFallback = !book.coverUrl || imgError;
+    const hue = titleToHue(book.title);
+    const initials = titleInitials(book.title);
+
+    const style: React.CSSProperties = {
+        width: width ?? "100%",
+        height: height ?? "100%",
+        position: "absolute",
+        inset: 0,
+        objectFit: "cover",
+    };
+
+    if (showFallback) {
+        return (
+            <div
+                style={{
+                    position: "absolute",
+                    inset: 0,
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    background: `linear-gradient(145deg, hsl(${hue},55%,52%) 0%, hsl(${hue + 30},45%,38%) 100%)`,
+                    gap: 6,
+                    padding: 6,
+                    overflow: "hidden",
+                }}
+            >
+                {/* Decorative top stripe */}
+                <div
+                    style={{
+                        position: "absolute",
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        height: 4,
+                        background: `hsl(${hue},70%,80%)`,
+                        opacity: 0.7,
+                    }}
+                />
+                <span
+                    style={{
+                        fontSize,
+                        fontWeight: 800,
+                        color: "rgba(255,255,255,0.95)",
+                        lineHeight: 1,
+                        letterSpacing: "-0.03em",
+                        textShadow: "0 2px 8px rgba(0,0,0,0.25)",
+                        userSelect: "none",
+                    }}
+                >
+                    {initials}
+                </span>
+                <span
+                    style={{
+                        fontSize: Math.max(7, fontSize * 0.32),
+                        fontWeight: 500,
+                        color: "rgba(255,255,255,0.75)",
+                        textAlign: "center",
+                        lineHeight: 1.25,
+                        maxWidth: "90%",
+                        overflow: "hidden",
+                        display: "-webkit-box",
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: "vertical" as React.CSSProperties["WebkitBoxOrient"],
+                        wordBreak: "break-word",
+                        userSelect: "none",
+                    }}
+                >
+                    {book.title}
+                </span>
+            </div>
+        );
+    }
+
+    return (
+        <img
+            src={book.coverUrl!}
+            alt={book.title}
+            referrerPolicy="no-referrer"
+            style={style}
+            onError={() => setImgError(true)}
+        />
+    );
+}
+
+/* ── Constants ──────────────────────────────────────── */
 
 const providerLabel: Record<string, string> = {
     GDRIVE: "Google Drive",
@@ -21,25 +146,45 @@ const providerColor: Record<string, string> = {
     LOCAL: "var(--color-accent)",
 };
 
+type FilterValue = "ALL" | BookCategory;
+
+const CHIPS: { value: FilterValue; label: string }[] = [
+    { value: "ALL", label: "All" },
+    ...CATEGORY_OPTIONS.map(o => ({ value: o.value as FilterValue, label: o.label })),
+];
+
+const CATEGORY_LABEL: Record<string, string> = Object.fromEntries(
+    CATEGORY_OPTIONS.map(o => [o.value, o.label])
+);
+
+/* ── Component ──────────────────────────────────────── */
+
 export default function LibraryClient({
     user,
     books: initialBooks,
 }: {
-    user: Pick<User, "id" | "name" | "email">;
+    user: Pick<User, "id" | "name" | "email" | "role">;
     books: Book[];
 }) {
     const router = useRouter();
     const [books, setBooks] = useState(initialBooks);
     const [search, setSearch] = useState("");
+    const [activeCategory, setActiveCategory] = useState<FilterValue>("ALL");
     const [view, setView] = useState<"grid" | "list">("grid");
     const [showAdd, setShowAdd] = useState(false);
     const [signingOut, setSigningOut] = useState(false);
 
-    const filtered = books.filter(
-        b =>
+    const canAdd = canAddBook(user.role);
+
+    /* Combined filtering: search + category */
+    const filtered = books.filter(b => {
+        const matchSearch =
             b.title.toLowerCase().includes(search.toLowerCase()) ||
-            (b.author ?? "").toLowerCase().includes(search.toLowerCase())
-    );
+            (b.author ?? "").toLowerCase().includes(search.toLowerCase());
+        const matchCategory =
+            activeCategory === "ALL" || b.category === activeCategory;
+        return matchSearch && matchCategory;
+    });
 
     async function handleSignOut() {
         setSigningOut(true);
@@ -53,6 +198,7 @@ export default function LibraryClient({
         setShowAdd(false);
     }
 
+    /* ── Render ── */
     return (
         <div
             style={{
@@ -62,7 +208,7 @@ export default function LibraryClient({
                 flexDirection: "column",
             }}
         >
-            {/* ── App Bar ─────────────────────────────────── */}
+            {/* ── App Bar ───────────────────────────────────── */}
             <header
                 style={{
                     position: "sticky",
@@ -86,7 +232,7 @@ export default function LibraryClient({
                 >
                     {/* Logo */}
                     <Link
-                        href="/"
+                        href="/library"
                         style={{
                             display: "flex",
                             alignItems: "center",
@@ -144,93 +290,168 @@ export default function LibraryClient({
                             ))}
                         </div>
 
-                        {/* Add book */}
-                        <button
-                            onClick={() => setShowAdd(true)}
-                            className="btn btn-primary"
-                            style={{ padding: "8px 14px", fontSize: 13 }}
-                            id="add-book-btn"
-                        >
-                            <Plus size={15} strokeWidth={2} />
-                            Add book
-                        </button>
+                        {/* Add book — only HEAD & LEAD */}
+                        {canAdd && (
+                            <button
+                                onClick={() => setShowAdd(true)}
+                                className="btn btn-primary"
+                                style={{ padding: "8px 14px", fontSize: 13 }}
+                                id="add-book-btn"
+                            >
+                                <Plus size={15} strokeWidth={2} />
+                                Add book
+                            </button>
+                        )}
 
                         {/* User menu */}
-                        <button
-                            onClick={handleSignOut}
-                            disabled={signingOut}
-                            className="btn btn-ghost"
-                            style={{ padding: "8px 12px", fontSize: 13 }}
-                            title={`Sign out (${user.email})`}
-                            id="signout-btn"
-                        >
-                            <LogOut size={15} strokeWidth={1.5} />
-                        </button>
+                        <ProfileDrawer
+                            user={user}
+                            onLogout={handleSignOut}
+                            isLoggingOut={signingOut}
+                        />
                     </div>
+                </div>
+
+                {/* ── Category Filter Bar ────────────────────────── */}
+                <div
+                    style={{
+                        maxWidth: 1200,
+                        margin: "0 auto",
+                        padding: "0 20px 10px",
+                        overflowX: "auto",
+                        display: "flex",
+                        gap: 8,
+                        scrollbarWidth: "none",
+                        /* Hide scrollbar on webkit */
+                        msOverflowStyle: "none",
+                    }}
+                    className="hide-scrollbar"
+                    role="tablist"
+                    aria-label="Filter books by category"
+                >
+                    {CHIPS.map(chip => {
+                        const isActive = activeCategory === chip.value;
+                        return (
+                            <motion.button
+                                key={chip.value}
+                                id={`filter-chip-${chip.value}`}
+                                role="tab"
+                                aria-selected={isActive}
+                                onClick={() => setActiveCategory(chip.value)}
+                                whileTap={{ scale: 0.95 }}
+                                style={{
+                                    flexShrink: 0,
+                                    padding: "6px 16px",
+                                    borderRadius: 99,
+                                    border: isActive
+                                        ? "1.5px solid #1A1A1A"
+                                        : "1.5px solid var(--color-border)",
+                                    background: isActive ? "#1A1A1A" : "#FFFDF9",
+                                    color: isActive ? "#FAFAF8" : "var(--color-text-muted)",
+                                    fontSize: 13,
+                                    fontWeight: isActive ? 600 : 400,
+                                    cursor: "pointer",
+                                    transition: "all 0.18s ease",
+                                    whiteSpace: "nowrap",
+                                    letterSpacing: "0.01em",
+                                }}
+                            >
+                                {chip.label}
+                            </motion.button>
+                        );
+                    })}
                 </div>
             </header>
 
-            {/* ── Content ──────────────────────────────────── */}
+            {/* ── Content ──────────────────────────────────────── */}
             <main
                 style={{
                     flex: 1,
                     maxWidth: 1200,
                     margin: "0 auto",
-                    padding: "32px 20px",
+                    padding: "28px 20px",
                     width: "100%",
                 }}
             >
-
-
                 {/* Empty state */}
-                {filtered.length === 0 && (
-                    <motion.div
-                        initial={{ opacity: 0, y: 16 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        style={{
-                            display: "flex",
-                            flexDirection: "column",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            padding: "80px 24px",
-                            textAlign: "center",
-                        }}
-                    >
-                        <div
+                <AnimatePresence mode="wait">
+                    {filtered.length === 0 && (
+                        <motion.div
+                            key="empty"
+                            initial={{ opacity: 0, y: 16 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -8 }}
+                            transition={{ duration: 0.3 }}
                             style={{
-                                width: 72,
-                                height: 72,
-                                borderRadius: "var(--radius-lg)",
-                                background: "var(--color-accent-soft)",
                                 display: "flex",
+                                flexDirection: "column",
                                 alignItems: "center",
                                 justifyContent: "center",
-                                marginBottom: 20,
+                                padding: "80px 24px",
+                                textAlign: "center",
                             }}
                         >
-                            <BookOpen size={32} strokeWidth={1.5} color="var(--color-accent)" />
-                        </div>
-                        <h2 style={{ fontFamily: "var(--font-serif)", fontSize: 22, color: "var(--color-ink)", marginBottom: 8 }}>
-                            {search ? "No books found" : "Your library is empty"}
-                        </h2>
-                        <p style={{ fontSize: 14, color: "var(--color-text-muted)", maxWidth: 320, lineHeight: 1.6 }}>
-                            {search
-                                ? "Try a different search term."
-                                : "Connect your cloud storage or add a book to start reading."}
-                        </p>
-                        {!search && (
-                            <button
-                                className="btn btn-primary"
-                                onClick={() => setShowAdd(true)}
-                                style={{ marginTop: 24 }}
-                                id="empty-add-book-btn"
+                            <div
+                                style={{
+                                    width: 72,
+                                    height: 72,
+                                    borderRadius: "var(--radius-lg)",
+                                    background: "var(--color-accent-soft)",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    marginBottom: 20,
+                                }}
                             >
-                                <Plus size={16} strokeWidth={2} />
-                                Add your first book
-                            </button>
-                        )}
-                    </motion.div>
-                )}
+                                <BookOpen size={32} strokeWidth={1.5} color="var(--color-accent)" />
+                            </div>
+                            <h2 style={{ fontFamily: "var(--font-serif)", fontSize: 22, color: "var(--color-ink)", marginBottom: 8 }}>
+                                {search
+                                    ? "No books found"
+                                    : activeCategory !== "ALL"
+                                        ? `No books in "${CATEGORY_LABEL[activeCategory]}"`
+                                        : "Your library is empty"}
+                            </h2>
+                            <p style={{ fontSize: 14, color: "var(--color-text-muted)", maxWidth: 340, lineHeight: 1.6, fontFamily: "var(--font-serif)", fontStyle: "italic" }}>
+                                {search
+                                    ? "Try a different search term or clear the filter."
+                                    : activeCategory !== "ALL"
+                                        ? "Add a book and assign it to this category, or choose a different filter."
+                                        : "Connect your cloud storage or add a book to start reading."}
+                            </p>
+                            {!search && activeCategory === "ALL" && canAdd && (
+                                <button
+                                    className="btn btn-primary"
+                                    onClick={() => setShowAdd(true)}
+                                    style={{ marginTop: 24 }}
+                                    id="empty-add-book-btn"
+                                >
+                                    <Plus size={16} strokeWidth={2} />
+                                    Add your first book
+                                </button>
+                            )}
+                            {activeCategory !== "ALL" && (
+                                <button
+                                    className="btn"
+                                    onClick={() => setActiveCategory("ALL")}
+                                    style={{
+                                        marginTop: 20,
+                                        padding: "8px 20px",
+                                        background: "#FFFDF9",
+                                        border: "1.5px solid var(--color-border)",
+                                        borderRadius: 99,
+                                        cursor: "pointer",
+                                        fontSize: 13,
+                                        color: "var(--color-text-muted)",
+                                    }}
+                                    id="empty-clear-filter-btn"
+                                >
+                                    Show all books
+                                </button>
+                            )}
+                        </motion.div>
+                    )}
+                </AnimatePresence>
 
                 {/* Grid view */}
                 {view === "grid" && filtered.length > 0 && (
@@ -262,7 +483,7 @@ export default function LibraryClient({
                 )}
             </main>
 
-            {/* ── Add Book Modal ────────────────────────────── */}
+            {/* ── Add Book Modal ──────────────────────────────── */}
             <AnimatePresence>
                 {showAdd && (
                     <AddBookModal onClose={() => setShowAdd(false)} onAdded={onBookAdded} />
@@ -272,7 +493,7 @@ export default function LibraryClient({
     );
 }
 
-/* ── Book Card (Grid) ───────────────────────────────── */
+/* ── Book Card (Grid) ──────────────────────────────── */
 function BookCard({ book, index }: { book: Book; index: number }) {
     return (
         <motion.div
@@ -293,25 +514,7 @@ function BookCard({ book, index }: { book: Book; index: number }) {
                             overflow: "hidden",
                         }}
                     >
-                        {book.coverUrl && (
-                            <img
-                                src={book.coverUrl}
-                                alt={book.title}
-                                referrerPolicy="no-referrer"
-                                style={{
-                                    width: "100%",
-                                    height: "100%",
-                                    objectFit: "cover",
-                                    position: "absolute",
-                                    inset: 0,
-                                }}
-                            />
-                        )}
-                        {!book.coverUrl && (
-                            <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                                <FileText size={32} strokeWidth={1.5} color="var(--color-text-faint)" />
-                            </div>
-                        )}
+                        <BookCover book={book} fontSize={28} />
 
                         {/* Progress bar */}
                         {book.totalPages && book.currentPage > 0 && (
@@ -342,8 +545,30 @@ function BookCard({ book, index }: { book: Book; index: number }) {
                                 border: "1px solid rgba(255,255,255,0.5)",
                             }}
                         >
-                            {book.provider === "GDRIVE" ? "GDrive" : book.provider === "ONEDRIVE" ? "OneDrive" : "Local"}
+                            {providerLabel[book.provider] ?? book.provider}
                         </div>
+
+                        {/* Category badge */}
+                        {book.category && (
+                            <div
+                                style={{
+                                    position: "absolute",
+                                    bottom: 8,
+                                    left: 8,
+                                    padding: "2px 7px",
+                                    borderRadius: 99,
+                                    fontSize: 9,
+                                    fontWeight: 600,
+                                    background: "rgba(26,26,26,0.78)",
+                                    color: "#FAFAF8",
+                                    letterSpacing: "0.04em",
+                                    textTransform: "uppercase",
+                                    backdropFilter: "blur(4px)",
+                                }}
+                            >
+                                {CATEGORY_LABEL[book.category] ?? book.category}
+                            </div>
+                        )}
                     </div>
 
                     {/* Meta */}
@@ -404,11 +629,11 @@ function BookRow({ book, index }: { book: Book; index: number }) {
                         (e.currentTarget as HTMLElement).style.borderColor = "var(--color-border)";
                     }}
                 >
-                    {/* Thumbnail / Icon */}
+                    {/* Thumbnail */}
                     <div
                         style={{
                             width: 40,
-                            height: 56, // roughly 2:3 aspect ratio
+                            height: 56,
                             borderRadius: "var(--radius-sm)",
                             background: `linear-gradient(135deg, ${providerColor[book.provider]}20 0%, var(--color-surface-2) 100%)`,
                             display: "flex",
@@ -419,22 +644,7 @@ function BookRow({ book, index }: { book: Book; index: number }) {
                             position: "relative",
                         }}
                     >
-                        {book.coverUrl ? (
-                            <img
-                                src={book.coverUrl}
-                                alt={book.title}
-                                referrerPolicy="no-referrer"
-                                style={{
-                                    width: "100%",
-                                    height: "100%",
-                                    objectFit: "cover",
-                                    position: "absolute",
-                                    inset: 0,
-                                }}
-                            />
-                        ) : (
-                            <FileText size={18} strokeWidth={1.5} color="var(--color-text-faint)" />
-                        )}
+                        <BookCover book={book} fontSize={14} />
                     </div>
 
                     {/* Text */}
@@ -448,7 +658,23 @@ function BookRow({ book, index }: { book: Book; index: number }) {
                     </div>
 
                     {/* Right meta */}
-                    <div style={{ display: "flex", alignItems: "center", gap: 16, flexShrink: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
+                        {book.category && (
+                            <span
+                                style={{
+                                    padding: "3px 10px",
+                                    borderRadius: 99,
+                                    fontSize: 11,
+                                    fontWeight: 500,
+                                    background: "#FFFDF9",
+                                    border: "1px solid var(--color-border)",
+                                    color: "var(--color-text-muted)",
+                                    whiteSpace: "nowrap",
+                                }}
+                            >
+                                {CATEGORY_LABEL[book.category] ?? book.category}
+                            </span>
+                        )}
                         {book.fileSize && (
                             <span style={{ fontSize: 12, color: "var(--color-text-faint)" }}>
                                 {formatBytes(book.fileSize)}

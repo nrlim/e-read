@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { canDeleteBook } from "@/lib/types";
 
 export async function PATCH(
     req: NextRequest,
@@ -30,6 +31,14 @@ export async function DELETE(
     const { id } = await params;
     const user = await getSession();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    // Role guard: only HEAD and LEAD can delete books
+    if (!canDeleteBook(user.role)) {
+        return NextResponse.json(
+            { error: "You don't have permission to delete books." },
+            { status: 403 }
+        );
+    }
 
     const book = await prisma.book.findFirst({ where: { id, userId: user.id } });
     if (!book) return NextResponse.json({ error: "Not found" }, { status: 404 });
