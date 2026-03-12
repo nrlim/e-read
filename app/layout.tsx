@@ -10,7 +10,6 @@ export const metadata: Metadata = {
     "A high-end personal digital library platform that connects to cloud storage and provides an immersive book-reading experience.",
   keywords: ["e-read", "digital library", "PDF reader", "ebooks", "personal library"],
   authors: [{ name: "e-Read" }],
-  manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",

@@ -13,6 +13,7 @@ import {
   Library
 } from "lucide-react";
 import Link from "next/link";
+import { useEffect } from "react";
 import * as SheetPrimitive from "@radix-ui/react-dialog";
 import { Sheet } from "@/components/ui/sheet";
 
@@ -30,6 +31,33 @@ interface ProfileDrawerProps {
 
 export function ProfileDrawer({ user, onLogout, isLoggingOut }: ProfileDrawerProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isInstallable, setIsInstallable] = useState(false);
+
+  useEffect(() => {
+    // Listen for the PWA install prompt event
+    const handleBeforeInstallPrompt = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setIsInstallable(true);
+    };
+
+    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+
+    return () => {
+      window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === "accepted") {
+      setIsInstallable(false);
+      setDeferredPrompt(null);
+    }
+  };
 
   // Derive user initials for a truly custom, high-end feel
   const initials = user?.name
@@ -189,6 +217,32 @@ export function ProfileDrawer({ user, onLogout, isLoggingOut }: ProfileDrawerPro
                         </div>
                     )}
                   </div>
+
+                  {/* Optional: PWA Install Button */}
+                  {isInstallable && (
+                    <div style={{ marginBottom: 24 }}>
+                      <button 
+                        onClick={handleInstallClick}
+                        className="btn w-full flex items-center justify-center gap-2 transition-all shadow-sm group"
+                        style={{
+                            padding: "14px 24px", 
+                            backgroundColor: "var(--color-accent)", 
+                            border: "none", 
+                            color: "var(--color-bg)",
+                            fontSize: 15,
+                            fontWeight: 600,
+                            borderRadius: 12
+                        }}
+                      >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                          <polyline points="7 10 12 15 17 10" />
+                          <line x1="12" y1="15" x2="12" y2="3" />
+                        </svg>
+                        <span>Install e-Read App</span>
+                      </button>
+                    </div>
+                  )}
 
                   {/* 2. Menu Groups */}
                   <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
