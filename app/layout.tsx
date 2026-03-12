@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { GlobalInstallPrompt } from "@/components/GlobalInstallPrompt";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -46,6 +47,7 @@ export default function RootLayout({
         />
       </head>
       <body className="grain">
+        <GlobalInstallPrompt />
         {children}
       </body>
     </html>
