@@ -2,11 +2,11 @@
 
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { 
-  BookOpen, 
-  BarChart2, 
-  Settings, 
-  LogOut, 
+import {
+  BookOpen,
+  BarChart2,
+  Settings,
+  LogOut,
   UserCircle2,
   X,
   ChevronRight,
@@ -31,7 +31,7 @@ interface ProfileDrawerProps {
 
 export function ProfileDrawer({ user, onLogout, isLoggingOut }: ProfileDrawerProps) {
   const [isOpen, setIsOpen] = useState(false);
-    // Install PWA functionality removed
+  // Install PWA functionality removed
 
   // Derive user initials for a truly custom, high-end feel
   const initials = user?.name
@@ -39,9 +39,9 @@ export function ProfileDrawer({ user, onLogout, isLoggingOut }: ProfileDrawerPro
     : "";
 
   const ROLE_STYLE: Record<UserRole, { label: string; bg: string; color: string }> = {
-      HEAD:   { label: "Head",   bg: "rgba(168,85,247,0.12)", color: "#7c3aed" },
-      LEAD:   { label: "Lead",   bg: "rgba(59,130,246,0.12)",  color: "#2563eb" },
-      MEMBER: { label: "Member", bg: "rgba(107,114,128,0.10)", color: "#4b5563" },
+    HEAD: { label: "Head", bg: "rgba(168,85,247,0.12)", color: "#7c3aed" },
+    LEAD: { label: "Lead", bg: "rgba(59,130,246,0.12)", color: "#2563eb" },
+    MEMBER: { label: "Member", bg: "rgba(107,114,128,0.10)", color: "#4b5563" },
   };
   const roleBadge = user.role ? ROLE_STYLE[user.role] : null;
 
@@ -49,7 +49,7 @@ export function ProfileDrawer({ user, onLogout, isLoggingOut }: ProfileDrawerPro
     {
       title: "Reading",
       items: [
-        { icon: Library, label: "Library Overview", href: "/" },
+        { icon: Library, label: "Library Overview", href: "/library" },
         { icon: BarChart2, label: "Reading Statistics", href: "#" },
       ]
     },
@@ -64,15 +64,15 @@ export function ProfileDrawer({ user, onLogout, isLoggingOut }: ProfileDrawerPro
   return (
     <Sheet open={isOpen} onOpenChange={setIsOpen}>
       <SheetPrimitive.Trigger asChild>
-        <button 
-            className="rounded-full overflow-hidden transition-all flex items-center justify-center shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2"
-            style={{ 
-                width: 38, 
-                height: 38, 
-                backgroundColor: "var(--color-surface)", 
-                border: "2px solid var(--color-border)",
-                outlineColor: "var(--color-accent)"
-            }}
+        <button
+          className="rounded-full overflow-hidden transition-all flex items-center justify-center shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2"
+          style={{
+            width: 38,
+            height: 38,
+            backgroundColor: "var(--color-surface)",
+            border: "2px solid var(--color-border)",
+            outlineColor: "var(--color-accent)"
+          }}
         >
           {initials ? (
             <span style={{ fontSize: 13, fontWeight: 700, fontFamily: "var(--font-sans)", color: "var(--color-ink)" }}>{initials}</span>
@@ -85,7 +85,7 @@ export function ProfileDrawer({ user, onLogout, isLoggingOut }: ProfileDrawerPro
       <AnimatePresence>
         {isOpen && (
           <SheetPrimitive.Portal forceMount>
-            
+
             <SheetPrimitive.Overlay asChild forceMount>
               <motion.div
                 initial={{ opacity: 0 }}
@@ -103,13 +103,13 @@ export function ProfileDrawer({ user, onLogout, isLoggingOut }: ProfileDrawerPro
                 exit={{ x: "100%" }}
                 transition={{ type: "spring", damping: 32, stiffness: 300, mass: 0.8 }}
                 className="fixed inset-y-0 right-0 z-50 flex flex-col font-sans"
-                style={{ 
-                    height: "100%", 
-                    width: "100%", 
-                    maxWidth: 420, 
-                    backgroundColor: "var(--color-bg)", 
-                    boxShadow: "0 0 40px var(--color-shadow)", 
-                    borderLeft: "1px solid var(--color-border)"
+                style={{
+                  height: "100%",
+                  width: "100%",
+                  maxWidth: 420,
+                  backgroundColor: "var(--color-bg)",
+                  boxShadow: "0 0 40px var(--color-shadow)",
+                  borderLeft: "1px solid var(--color-border)"
                 }}
               >
                 {/* Header Actions */}
@@ -121,9 +121,9 @@ export function ProfileDrawer({ user, onLogout, isLoggingOut }: ProfileDrawerPro
                     Manage your profile and settings
                   </SheetPrimitive.Description>
                   <SheetPrimitive.Close asChild>
-                    <button 
-                        className="rounded-full transition-all focus:outline-none shadow-sm flex items-center justify-center btn-ghost"
-                        style={{ padding: 10, backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)" }}
+                    <button
+                      className="rounded-full transition-all focus:outline-none shadow-sm flex items-center justify-center btn-ghost"
+                      style={{ padding: 10, backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)" }}
                     >
                       <X style={{ width: 16, height: 16, color: "var(--color-text-muted)" }} strokeWidth={2.5} />
                       <span className="sr-only">Close</span>
@@ -133,28 +133,28 @@ export function ProfileDrawer({ user, onLogout, isLoggingOut }: ProfileDrawerPro
 
                 <div className="overflow-y-auto flex-1" style={{ padding: "0 24px 32px 24px" }}>
                   {/* 1. User Profile Card */}
-                  <div 
-                    className="card shadow-warm" 
-                    style={{ 
-                        marginTop: 20, 
-                        marginBottom: 32, 
-                        padding: 24, 
-                        display: "flex", 
-                        flexDirection: "column", 
-                        alignItems: "center", 
-                        position: "relative" 
+                  <div
+                    className="card shadow-warm"
+                    style={{
+                      marginTop: 20,
+                      marginBottom: 32,
+                      padding: 24,
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      position: "relative"
                     }}
                   >
                     <div className="relative z-10">
-                      <div 
+                      <div
                         className="rounded-full shadow-sm flex items-center justify-center"
-                        style={{ 
-                            width: 80, 
-                            height: 80, 
-                            marginBottom: 16, 
-                            border: "3px solid var(--color-surface)", 
-                            backgroundColor: "var(--color-bg)",
-                            boxShadow: "0 0 0 1px var(--color-border-2)" 
+                        style={{
+                          width: 80,
+                          height: 80,
+                          marginBottom: 16,
+                          border: "3px solid var(--color-surface)",
+                          backgroundColor: "var(--color-bg)",
+                          boxShadow: "0 0 0 1px var(--color-border-2)"
                         }}
                       >
                         {initials ? (
@@ -164,7 +164,7 @@ export function ProfileDrawer({ user, onLogout, isLoggingOut }: ProfileDrawerPro
                         )}
                       </div>
                     </div>
-                    
+
                     <h2 className="font-serif font-medium leading-snug text-center z-10" style={{ fontSize: 22, color: "var(--color-ink)", padding: "0 8px" }}>
                       {user.name || "Reader"}
                     </h2>
@@ -172,23 +172,23 @@ export function ProfileDrawer({ user, onLogout, isLoggingOut }: ProfileDrawerPro
                       {user.email}
                     </p>
                     {roleBadge && (
-                        <div style={{ marginTop: 16, zIndex: 10 }}>
-                            <span
-                                style={{
-                                    padding: "4px 12px",
-                                    borderRadius: 99,
-                                    fontSize: 11,
-                                    fontWeight: 600,
-                                    background: roleBadge.bg,
-                                    color: roleBadge.color,
-                                    border: `1px solid ${roleBadge.color}30`,
-                                    letterSpacing: "0.04em",
-                                    textTransform: "uppercase",
-                                }}
-                            >
-                                {roleBadge.label}
-                            </span>
-                        </div>
+                      <div style={{ marginTop: 16, zIndex: 10 }}>
+                        <span
+                          style={{
+                            padding: "4px 12px",
+                            borderRadius: 99,
+                            fontSize: 11,
+                            fontWeight: 600,
+                            background: roleBadge.bg,
+                            color: roleBadge.color,
+                            border: `1px solid ${roleBadge.color}30`,
+                            letterSpacing: "0.04em",
+                            textTransform: "uppercase",
+                          }}
+                        >
+                          {roleBadge.label}
+                        </span>
+                      </div>
                     )}
                   </div>
 
@@ -209,18 +209,18 @@ export function ProfileDrawer({ user, onLogout, isLoggingOut }: ProfileDrawerPro
                                 href={item.href}
                                 className="flex items-center group btn-ghost"
                                 style={{
-                                    padding: "14px 16px",
-                                    gap: 16,
-                                    border: "none",
-                                    borderBottom: itemIdx !== group.items.length - 1 ? "1px solid var(--color-border)" : "none",
-                                    borderRadius: 0,
-                                    justifyContent: "flex-start",
-                                    width: "100%"
+                                  padding: "14px 16px",
+                                  gap: 16,
+                                  border: "none",
+                                  borderBottom: itemIdx !== group.items.length - 1 ? "1px solid var(--color-border)" : "none",
+                                  borderRadius: 0,
+                                  justifyContent: "flex-start",
+                                  width: "100%"
                                 }}
                               >
-                                <div 
-                                    className="rounded-xl flex items-center justify-center transition-all"
-                                    style={{ padding: 8, backgroundColor: "var(--color-bg)", color: "var(--color-text-muted)" }}
+                                <div
+                                  className="rounded-xl flex items-center justify-center transition-all"
+                                  style={{ padding: 8, backgroundColor: "var(--color-bg)", color: "var(--color-text-muted)" }}
                                 >
                                   <Icon style={{ width: 18, height: 18 }} strokeWidth={2} />
                                 </div>
@@ -236,17 +236,17 @@ export function ProfileDrawer({ user, onLogout, isLoggingOut }: ProfileDrawerPro
 
                   {/* 3. Actions Group */}
                   <div style={{ marginTop: 32 }}>
-                    <button 
+                    <button
                       onClick={onLogout}
                       disabled={isLoggingOut}
                       className="btn w-full shadow-warm flex items-center justify-center gap-2 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed group"
-                      style={{ 
-                          padding: "16px 24px", 
-                          backgroundColor: "var(--color-surface)", 
-                          border: "1px solid var(--color-border)", 
-                          color: "var(--color-warm-red)",
-                          fontSize: 15,
-                          fontWeight: 600
+                      style={{
+                        padding: "16px 24px",
+                        backgroundColor: "var(--color-surface)",
+                        border: "1px solid var(--color-border)",
+                        color: "var(--color-warm-red)",
+                        fontSize: 15,
+                        fontWeight: 600
                       }}
                     >
                       {isLoggingOut ? (

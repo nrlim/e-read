@@ -502,9 +502,10 @@ function BookCard({ book, index }: { book: Book; index: number }) {
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.9 }}
             transition={{ delay: index * 0.04, duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] }}
+            style={{ height: "100%" }}
         >
-            <Link href={`/reader/${book.id}`} style={{ textDecoration: "none", display: "block" }}>
-                <div className="card" style={{ cursor: "pointer" }}>
+            <Link href={`/reader/${book.id}`} style={{ textDecoration: "none", display: "block", height: "100%" }}>
+                <div className="card" style={{ cursor: "pointer", display: "flex", flexDirection: "column", height: "100%" }}>
                     {/* Cover */}
                     <div
                         style={{
@@ -572,7 +573,7 @@ function BookCard({ book, index }: { book: Book; index: number }) {
                     </div>
 
                     {/* Meta */}
-                    <div style={{ padding: "12px 12px 14px" }}>
+                    <div style={{ padding: "12px 12px 14px", flex: 1, display: "flex", flexDirection: "column", justifyContent: "flex-start" }}>
                         <p
                             style={{
                                 fontFamily: "var(--font-serif)",
@@ -586,7 +587,7 @@ function BookCard({ book, index }: { book: Book; index: number }) {
                             {truncate(book.title, 40)}
                         </p>
                         {book.author && (
-                            <p style={{ fontSize: 12, color: "var(--color-text-faint)", lineHeight: 1.4 }}>
+                            <p style={{ fontSize: 12, color: "var(--color-text-faint)", lineHeight: 1.4, marginTop: "auto" }}>
                                 {truncate(book.author, 30)}
                             </p>
                         )}
