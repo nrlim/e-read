@@ -10,7 +10,6 @@ export default async function LibraryPage() {
     if (!user) redirect("/auth/login");
 
     const books = await prisma.book.findMany({
-        where: { userId: user.id },
         orderBy: { updatedAt: "desc" },
     });
 

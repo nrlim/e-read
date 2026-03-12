@@ -15,7 +15,7 @@ export default async function ReaderPage({ params }: { params: Promise<{ id: str
     if (!user) redirect("/auth/login");
 
     const book = await prisma.book.findFirst({
-        where: { id, userId: user.id },
+        where: { id },
     });
     if (!book) notFound();
 

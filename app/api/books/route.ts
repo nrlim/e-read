@@ -8,7 +8,6 @@ export async function GET() {
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const books = await prisma.book.findMany({
-        where: { userId: user.id },
         orderBy: { updatedAt: "desc" },
     });
 

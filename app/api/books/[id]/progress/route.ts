@@ -13,7 +13,7 @@ export async function PATCH(
 
     const { currentPage } = await req.json();
 
-    const book = await prisma.book.findFirst({ where: { id, userId: user.id } });
+    const book = await prisma.book.findFirst({ where: { id } });
     if (!book) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
     const updated = await prisma.book.update({
