@@ -55,17 +55,31 @@ export async function POST(req: NextRequest) {
             }
         }
 
-        const book = await prisma.book.create({
-            data: {
-                title,
-                author: author || null,
-                fileUrl,
-                coverUrl: finalCoverUrl,
-                provider,
-                category: category || null,
-                userId: user.id,
-            },
+        const existingBook = await prisma.book.findFirst({
+            where: { fileUrl }
         });
+
+        const bookData = {
+            title,
+            author: author || null,
+            fileUrl,
+            coverUrl: finalCoverUrl,
+            provider,
+            category: category || null,
+            userId: user.id,
+        };
+
+        let book;
+        if (existingBook) {
+            book = await prisma.book.update({
+                where: { id: existingBook.id },
+                data: bookData,
+            });
+        } else {
+            book = await prisma.book.create({
+                data: bookData,
+            });
+        }
 
         return NextResponse.json({ book }, { status: 201 });
     } catch (err) {

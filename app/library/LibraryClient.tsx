@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useTransition } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { BookOpen, Plus, Search, Grid3X3, List } from "lucide-react";
 import type { Book, BookCategory, User, UserRole } from "@/lib/types";
@@ -161,30 +161,63 @@ const CATEGORY_LABEL: Record<string, string> = Object.fromEntries(
 
 export default function LibraryClient({
     user,
-    books: initialBooks,
+    books,
+    currentPage = 1,
+    totalPages = 1,
+    initialSearch = "",
+    initialCategory = "ALL",
+    initialLimit = 25,
 }: {
     user: Pick<User, "id" | "name" | "email" | "role">;
     books: Book[];
+    currentPage?: number;
+    totalPages?: number;
+    initialSearch?: string;
+    initialCategory?: string;
+    initialLimit?: number;
 }) {
     const router = useRouter();
-    const [books, setBooks] = useState(initialBooks);
-    const [search, setSearch] = useState("");
-    const [activeCategory, setActiveCategory] = useState<FilterValue>("ALL");
+    const pathname = usePathname();
+    const searchParams = useSearchParams();
+    const [isPending, startTransition] = useTransition();
+
+    const [search, setSearch] = useState(initialSearch);
+    const [limit, setLimit] = useState(initialLimit);
+    const [activeCategory, setActiveCategory] = useState<FilterValue>(initialCategory as FilterValue);
     const [view, setView] = useState<"grid" | "list">("grid");
     const [showAdd, setShowAdd] = useState(false);
     const [signingOut, setSigningOut] = useState(false);
 
     const canAdd = canAddBook(user.role);
 
-    /* Combined filtering: search + category */
-    const filtered = books.filter(b => {
-        const matchSearch =
-            b.title.toLowerCase().includes(search.toLowerCase()) ||
-            (b.author ?? "").toLowerCase().includes(search.toLowerCase());
-        const matchCategory =
-            activeCategory === "ALL" || b.category === activeCategory;
-        return matchSearch && matchCategory;
-    });
+    useEffect(() => {
+        const timeout = setTimeout(() => {
+            const currentQ = searchParams.get('q') || "";
+            const currentC = searchParams.get('category') || "ALL";
+            const currentL = parseInt(searchParams.get('limit') || "25");
+
+            if (search !== currentQ || activeCategory !== currentC || limit !== currentL) {
+                const u = new URLSearchParams(searchParams.toString());
+                if (search) u.set("q", search); else u.delete("q");
+                if (activeCategory !== "ALL") u.set("category", activeCategory); else u.delete("category");
+                if (limit !== 25) u.set("limit", limit.toString()); else u.delete("limit");
+                u.delete("page"); 
+                startTransition(() => {
+                    router.push(`${pathname}?${u.toString()}`);
+                });
+            }
+        }, 400);
+        return () => clearTimeout(timeout);
+    }, [search, activeCategory, limit, pathname, router, searchParams]);
+
+    function goToPage(p: number) {
+        const u = new URLSearchParams(searchParams.toString());
+        u.set("page", p.toString());
+        startTransition(() => {
+            router.push(`${pathname}?${u.toString()}`);
+        });
+        window.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
+    }
 
     async function handleSignOut() {
         setSigningOut(true);
@@ -194,8 +227,8 @@ export default function LibraryClient({
     }
 
     function onBookAdded(book: Book) {
-        setBooks(prev => [book, ...prev]);
         setShowAdd(false);
+        router.refresh();
     }
 
     /* ── Render ── */
@@ -375,7 +408,7 @@ export default function LibraryClient({
             >
                 {/* Empty state */}
                 <AnimatePresence mode="wait">
-                    {filtered.length === 0 && (
+                    {books.length === 0 && (
                         <motion.div
                             key="empty"
                             initial={{ opacity: 0, y: 16 }}
@@ -454,7 +487,7 @@ export default function LibraryClient({
                 </AnimatePresence>
 
                 {/* Grid view */}
-                {view === "grid" && filtered.length > 0 && (
+                {view === "grid" && books.length > 0 && (
                     <motion.div
                         layout
                         style={{
@@ -464,7 +497,7 @@ export default function LibraryClient({
                         }}
                     >
                         <AnimatePresence mode="popLayout">
-                            {filtered.map((book, i) => (
+                            {books.map((book, i) => (
                                 <BookCard key={book.id} book={book} index={i} />
                             ))}
                         </AnimatePresence>
@@ -472,15 +505,111 @@ export default function LibraryClient({
                 )}
 
                 {/* List view */}
-                {view === "list" && filtered.length > 0 && (
+                {view === "list" && books.length > 0 && (
                     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                         <AnimatePresence mode="popLayout">
-                            {filtered.map((book, i) => (
+                            {books.map((book, i) => (
                                 <BookRow key={book.id} book={book} index={i} />
                             ))}
                         </AnimatePresence>
                     </div>
                 )}
+
+                {/* Bottom Pagination Control Bar */}
+                {(totalPages > 1 || books.length > 0) && (
+                    <div 
+                        className="flex flex-col sm:flex-row justify-between items-center w-full gap-4 sm:gap-6"
+                        style={{ 
+                            marginTop: 32,
+                            opacity: isPending ? 0.6 : 1, 
+                            transition: 'opacity 0.2s',
+                            background: "var(--color-surface)",
+                            padding: "16px 20px",
+                            borderRadius: "var(--radius-lg)",
+                            border: "1px solid var(--color-border)",
+                            boxShadow: "0 2px 12px rgba(0,0,0,0.03)"
+                        }}
+                    >
+                        <div className="flex items-center justify-center w-full sm:w-auto gap-3" style={{ fontSize: 13, color: "var(--color-text-faint)" }}>
+                            <span>Show</span>
+                            <select 
+                                value={limit} 
+                                onChange={(e) => setLimit(parseInt(e.target.value))}
+                                disabled={isPending}
+                                className="input"
+                                style={{ 
+                                    padding: "6px 12px", 
+                                    minHeight: 36,
+                                    height: 36,
+                                    borderRadius: "var(--radius-sm)", 
+                                    fontSize: 14,
+                                    fontWeight: 500,
+                                    width: "auto"
+                                }}
+                            >
+                                <option value={10}>10 items</option>
+                                <option value={25}>25 items</option>
+                                <option value={50}>50 items</option>
+                            </select>
+                        </div>
+
+                        {totalPages > 1 && (
+                            <div className="flex items-center justify-center w-full sm:w-auto gap-3">
+                                <button
+                                    className="btn-ghost"
+                                    disabled={currentPage <= 1 || isPending}
+                                    onClick={() => goToPage(currentPage - 1)}
+                                    style={{ 
+                                        padding: "8px 20px", 
+                                        borderRadius: "var(--radius-sm)", 
+                                        cursor: currentPage <= 1 ? "not-allowed" : "pointer", 
+                                        opacity: currentPage <= 1 ? 0.4 : 1,
+                                        fontSize: 14,
+                                        fontWeight: 600,
+                                        flex: "1 1 auto",
+                                        textAlign: "center"
+                                    }}
+                                >
+                                    Prev
+                                </button>
+                                
+                                <div style={{ 
+                                    padding: "8px 16px",
+                                    borderRadius: "var(--radius-sm)",
+                                    background: "var(--color-surface-2)",
+                                    border: "1px solid var(--color-border)",
+                                    fontSize: 14, 
+                                    color: "var(--color-ink)", 
+                                    fontWeight: 600,
+                                    minWidth: "80px",
+                                    textAlign: "center",
+                                    whiteSpace: "nowrap"
+                                }}>
+                                    {currentPage} / {totalPages}
+                                </div>
+
+                                <button
+                                    className="btn-ghost"
+                                    disabled={currentPage >= totalPages || isPending}
+                                    onClick={() => goToPage(currentPage + 1)}
+                                    style={{ 
+                                        padding: "8px 20px", 
+                                        borderRadius: "var(--radius-sm)", 
+                                        cursor: currentPage >= totalPages ? "not-allowed" : "pointer", 
+                                        opacity: currentPage >= totalPages ? 0.4 : 1,
+                                        fontSize: 14,
+                                        fontWeight: 600,
+                                        flex: "1 1 auto",
+                                        textAlign: "center"
+                                    }}
+                                >
+                                    Next
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                )}
+
             </main>
 
             {/* ── Add Book Modal ──────────────────────────────── */}
