@@ -19,7 +19,7 @@ export default async function LibraryPage(
     const q = typeof searchParams?.q === "string" ? searchParams.q : "";
     const category = typeof searchParams?.category === "string" ? searchParams.category : "ALL";
     const userLimit = typeof searchParams?.limit === "string" ? parseInt(searchParams.limit) : 25;
-    const limit = [10, 25, 50].includes(userLimit) ? userLimit : 25;
+    const limit = [10, 25, 50, 100].includes(userLimit) ? userLimit : 25;
 
     const where: Prisma.BookWhereInput = {
         AND: [
@@ -50,6 +50,7 @@ export default async function LibraryPage(
             books={books}
             currentPage={validPage}
             totalPages={totalPages}
+            totalBooks={totalBooks}
             initialSearch={q}
             initialCategory={category}
             initialLimit={limit}

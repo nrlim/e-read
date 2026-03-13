@@ -164,6 +164,7 @@ export default function LibraryClient({
     books,
     currentPage = 1,
     totalPages = 1,
+    totalBooks = 0,
     initialSearch = "",
     initialCategory = "ALL",
     initialLimit = 25,
@@ -172,6 +173,7 @@ export default function LibraryClient({
     books: Book[];
     currentPage?: number;
     totalPages?: number;
+    totalBooks?: number;
     initialSearch?: string;
     initialCategory?: string;
     initialLimit?: number;
@@ -297,6 +299,26 @@ export default function LibraryClient({
                     </div>
 
                     <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
+                        {/* Total Count */}
+                        <div 
+                            className="hidden sm:flex"
+                            style={{ 
+                                padding: "4px 10px", 
+                                background: "var(--color-surface-2)", 
+                                borderRadius: "var(--radius-sm)", 
+                                border: "1px solid var(--color-border)",
+                                fontSize: 13, 
+                                fontWeight: 500, 
+                                color: "var(--color-text-muted)",
+                                whiteSpace: "nowrap",
+                                alignItems: "center",
+                                height: 32,
+                                marginRight: 4
+                            }}
+                        >
+                            {totalBooks} {totalBooks === 1 ? 'item' : 'items'}
+                        </div>
+
                         {/* View toggle */}
                         <div style={{ display: "flex", background: "var(--color-surface-2)", borderRadius: "var(--radius-md)", padding: 3, border: "1px solid var(--color-border)", gap: 2 }}>
                             {(["grid", "list"] as const).map(v => (
@@ -550,6 +572,7 @@ export default function LibraryClient({
                                 <option value={10}>10 items</option>
                                 <option value={25}>25 items</option>
                                 <option value={50}>50 items</option>
+                                <option value={100}>100 items</option>
                             </select>
                         </div>
 
