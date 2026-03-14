@@ -18,20 +18,7 @@ import { google } from "googleapis";
 
 let _driveClient: ReturnType<typeof google.drive> | null = null;
 
-/** Extract the raw GDrive file ID from various URL formats */
-export function extractDriveFileId(fileUrl: string): string | null {
-    // /d/{id}/  or  ?id={id}  or  /open?id={id}
-    const patterns = [
-        /\/d\/([a-zA-Z0-9_-]+)/,
-        /[?&]id=([a-zA-Z0-9_-]+)/,
-        /^([a-zA-Z0-9_-]{25,})$/, // bare ID
-    ];
-    for (const re of patterns) {
-        const m = fileUrl.match(re);
-        if (m?.[1]) return m[1];
-    }
-    return null;
-}
+
 
 /** Returns an authenticated Google Drive v3 client (lazy singleton) */
 export function getDriveClient() {

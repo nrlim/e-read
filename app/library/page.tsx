@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import LibraryClient from "./LibraryClient";
 import { Prisma, BookCategory } from "@prisma/client";
+import type { Book } from "@/lib/types";
 
 export const metadata = { title: "My Library" };
 
@@ -22,6 +23,7 @@ export default async function LibraryPage(
     const category = typeof searchParams?.category === "string" ? searchParams.category : "ALL";
     const userLimit = typeof searchParams?.limit === "string" ? parseInt(searchParams.limit) : 25;
     const limit = [10, 25, 50, 100].includes(userLimit) ? userLimit : 25;
+    const savedOnly = searchParams?.saved === "true";
 
     const where: Prisma.BookWhereInput = {
         AND: [
@@ -31,7 +33,8 @@ export default async function LibraryPage(
                     { author: { contains: q, mode: "insensitive" } }
                 ]
             } : {},
-            category !== "ALL" ? { category: category as BookCategory } : {}
+            category !== "ALL" ? { category: category as BookCategory } : {},
+            savedOnly ? { personalList: { some: { userId: user.id } } } : {},
         ]
     };
 
@@ -39,12 +42,49 @@ export default async function LibraryPage(
     const totalPages = Math.ceil(totalBooks / limit) || 1;
     const validPage = Math.max(1, Math.min(page, totalPages));
 
-    const books = await prisma.book.findMany({
+    const rawBooks = await prisma.book.findMany({
         where,
         orderBy: { updatedAt: "desc" },
         skip: (validPage - 1) * limit,
         take: limit,
+        include: {
+            personalList: {
+                where: { userId: user.id },
+                select: { id: true },
+            },
+            readingProgress: {
+                where: { userId: user.id },
+                select: { lastPage: true, totalPage: true, lastReadAt: true },
+            },
+        },
     });
+
+    // Enrich books with per-user data
+    const books: Book[] = rawBooks.map((b) => ({
+        id: b.id,
+        title: b.title,
+        author: b.author,
+        coverUrl: b.coverUrl,
+        fileUrl: b.fileUrl,
+        provider: b.provider as Book["provider"],
+        lastPageRead: b.lastPageRead,
+        totalPageCount: b.totalPageCount,
+        fileSize: b.fileSize,
+        mimeType: b.mimeType,
+        tags: b.tags,
+        category: b.category as Book["category"],
+        createdAt: b.createdAt,
+        updatedAt: b.updatedAt,
+        userId: b.userId,
+        savedByUser: b.personalList.length > 0,
+        userProgress: b.readingProgress[0]
+            ? {
+                  lastPage: b.readingProgress[0].lastPage,
+                  totalPage: b.readingProgress[0].totalPage,
+                  lastReadAt: b.readingProgress[0].lastReadAt,
+              }
+            : null,
+    }));
 
     return (
         <LibraryClient
@@ -56,6 +96,7 @@ export default async function LibraryPage(
             initialSearch={q}
             initialCategory={category}
             initialLimit={limit}
+            initialSavedOnly={savedOnly}
         />
     );
 }

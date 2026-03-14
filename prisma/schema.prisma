@@ -9,16 +9,18 @@ datasource db {
 }
 
 model User {
-  id        String    @id @default(cuid())
-  email     String    @unique
-  password  String
-  name      String?
-  avatar    String?
-  role      UserRole  @default(MEMBER)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  books     Book[]
-  sessions  Session[]
+  id              String            @id @default(cuid())
+  email           String            @unique
+  password        String
+  name            String?
+  avatar          String?
+  role            UserRole          @default(MEMBER)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  books           Book[]
+  sessions        Session[]
+  personalList    PersonalList[]
+  readingProgress ReadingProgress[]
 }
 
 model Session {
@@ -31,24 +33,57 @@ model Session {
 }
 
 model Book {
-  id             String        @id @default(cuid())
-  title          String
-  author         String?
-  coverUrl       String?
-  fileUrl        String
-  provider       CloudProvider
-  lastPageRead   Int           @default(0)
-  totalPageCount Int?
-  fileSize       Int?
-  mimeType       String?
-  tags           String[]
-  category       BookCategory?
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
-  userId         String
-  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id              String            @id @default(cuid())
+  title           String
+  author          String?
+  coverUrl        String?
+  fileUrl         String
+  provider        CloudProvider
+  lastPageRead    Int               @default(0)
+  totalPageCount  Int?
+  fileSize        Int?
+  mimeType        String?
+  tags            String[]
+  category        BookCategory?
+  fileId          String?           @unique
+  isArchived      Boolean           @default(false)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  userId          String
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  personalList    PersonalList[]
+  readingProgress ReadingProgress[]
 
   @@index([userId])
+}
+
+/// Represents a book saved to a user's personal reading list.
+model PersonalList {
+  id        String   @id @default(cuid())
+  userId    String
+  bookId    String
+  savedAt   DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book      Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, bookId])
+  @@index([userId])
+}
+
+/// Tracks per-user reading progress for each book.
+model ReadingProgress {
+  id         String   @id @default(cuid())
+  userId     String
+  bookId     String
+  lastPage   Int      @default(1)
+  totalPage  Int      @default(0)
+  lastReadAt DateTime @default(now()) @updatedAt
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book       Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, bookId])
+  @@index([userId])
+  @@index([bookId])
 }
 
 enum UserRole {
@@ -71,4 +106,10 @@ enum BookCategory {
   LITERATURE_FICTION
   SPIRITUALITY
   OTHERS
+}
+
+model SystemConfig {
+  id         String   @id @default("global")
+  lastSyncAt DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 }

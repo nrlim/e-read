@@ -1,15 +1,16 @@
 "use client";
 
-import { useState, useEffect, useTransition } from "react";
+import { useState, useEffect, useTransition, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { BookOpen, Plus, Search, Grid3X3, List } from "lucide-react";
+import { BookOpen, Plus, Search, Grid3X3, List, Bookmark, Heart } from "lucide-react";
 import type { Book, BookCategory, User, UserRole } from "@/lib/types";
 import { canAddBook } from "@/lib/types";
 import { formatBytes, truncate } from "@/lib/utils";
 import AddBookModal, { CATEGORY_OPTIONS } from "@/components/AddBookModal";
 import { ProfileDrawer } from "@/components/ProfileDrawer";
+import SyncEngineButton from "@/components/SyncEngineButton";
 
 /* ── Cover Fallback Helpers ─────────────────────────── */
 
@@ -132,6 +133,67 @@ function BookCover({
     );
 }
 
+/* ── Save Toggle Button ─────────────────────────────── */
+function SaveButton({ book, onToggle }: { book: Book; onToggle: (bookId: string, saved: boolean) => void }) {
+    const [saved, setSaved] = useState(book.savedByUser ?? false);
+    const [loading, setLoading] = useState(false);
+
+    async function toggle(e: React.MouseEvent) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (loading) return;
+        setLoading(true);
+        const nextSaved = !saved;
+        try {
+            await fetch(`/api/books/${book.id}/save`, {
+                method: nextSaved ? "POST" : "DELETE",
+            });
+            setSaved(nextSaved);
+            onToggle(book.id, nextSaved);
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    return (
+        <button
+            onClick={toggle}
+            disabled={loading}
+            id={`save-btn-${book.id}`}
+            aria-label={saved ? "Remove from My List" : "Save to My List"}
+            title={saved ? "Remove from My List" : "Save to My List"}
+            style={{
+                position: "absolute",
+                top: 8,
+                left: 8,
+                width: 28,
+                height: 28,
+                borderRadius: "50%",
+                border: "none",
+                background: saved
+                    ? "rgba(139,105,20,0.90)"
+                    : "rgba(249,247,242,0.88)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                cursor: loading ? "wait" : "pointer",
+                boxShadow: "0 1px 6px rgba(0,0,0,0.18)",
+                transition: "all 0.18s ease",
+                backdropFilter: "blur(6px)",
+                zIndex: 2,
+                transform: loading ? "scale(0.9)" : "scale(1)",
+            }}
+        >
+            <Bookmark
+                size={13}
+                strokeWidth={1.5}
+                fill={saved ? "rgba(255,255,255,0.9)" : "none"}
+                color={saved ? "rgba(255,255,255,0.9)" : "var(--color-accent)"}
+            />
+        </button>
+    );
+}
+
 /* ── Constants ──────────────────────────────────────── */
 
 const providerLabel: Record<string, string> = {
@@ -146,10 +208,11 @@ const providerColor: Record<string, string> = {
     LOCAL: "var(--color-accent)",
 };
 
-type FilterValue = "ALL" | BookCategory;
+type FilterValue = "ALL" | "SAVED" | BookCategory;
 
 const CHIPS: { value: FilterValue; label: string }[] = [
     { value: "ALL", label: "All" },
+    { value: "SAVED", label: "My List" },
     ...CATEGORY_OPTIONS.map(o => ({ value: o.value as FilterValue, label: o.label })),
 ];
 
@@ -161,13 +224,14 @@ const CATEGORY_LABEL: Record<string, string> = Object.fromEntries(
 
 export default function LibraryClient({
     user,
-    books,
+    books: initialBooks,
     currentPage = 1,
     totalPages = 1,
     totalBooks = 0,
     initialSearch = "",
     initialCategory = "ALL",
     initialLimit = 25,
+    initialSavedOnly = false,
 }: {
     user: Pick<User, "id" | "name" | "email" | "role">;
     books: Book[];
@@ -177,32 +241,69 @@ export default function LibraryClient({
     initialSearch?: string;
     initialCategory?: string;
     initialLimit?: number;
+    initialSavedOnly?: boolean;
 }) {
     const router = useRouter();
     const pathname = usePathname();
     const searchParams = useSearchParams();
     const [isPending, startTransition] = useTransition();
 
+    const [books, setBooks] = useState<Book[]>(initialBooks);
     const [search, setSearch] = useState(initialSearch);
     const [limit, setLimit] = useState(initialLimit);
-    const [activeCategory, setActiveCategory] = useState<FilterValue>(initialCategory as FilterValue);
+    const [activeCategory, setActiveCategory] = useState<FilterValue>(
+        initialSavedOnly ? "SAVED" : (initialCategory as FilterValue)
+    );
     const [view, setView] = useState<"grid" | "list">("grid");
     const [showAdd, setShowAdd] = useState(false);
     const [signingOut, setSigningOut] = useState(false);
+    const prevPageRef = useRef(currentPage);
+
+    // Keep local books in sync when server refetches
+    useEffect(() => {
+        setBooks(initialBooks);
+    }, [initialBooks]);
+
+    useEffect(() => {
+        if (prevPageRef.current !== currentPage) {
+            window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
+            prevPageRef.current = currentPage;
+        }
+    }, [currentPage]);
 
     const canAdd = canAddBook(user.role);
 
+    /** Optimistically toggle savedByUser flag on a specific book */
+    const handleSaveToggle = useCallback((bookId: string, saved: boolean) => {
+        setBooks(prev =>
+            prev.map(b => b.id === bookId ? { ...b, savedByUser: saved } : b)
+        );
+        // If we're in "My List" view and user unsaved, remove it immediately
+        if (activeCategory === "SAVED" && !saved) {
+            setBooks(prev => prev.filter(b => b.id !== bookId));
+        }
+    }, [activeCategory]);
+
     useEffect(() => {
         const timeout = setTimeout(() => {
-            const currentQ = searchParams.get('q') || "";
-            const currentC = searchParams.get('category') || "ALL";
-            const currentL = parseInt(searchParams.get('limit') || "25");
+            const currentQ = searchParams.get("q") || "";
+            const currentC = searchParams.get("category") || "ALL";
+            const currentL = parseInt(searchParams.get("limit") || "25");
+            const currentSaved = searchParams.get("saved") === "true";
+            const isSaved = activeCategory === "SAVED";
+            const categoryParam = isSaved ? "ALL" : activeCategory;
 
-            if (search !== currentQ || activeCategory !== currentC || limit !== currentL) {
+            if (
+                search !== currentQ ||
+                categoryParam !== currentC ||
+                limit !== currentL ||
+                isSaved !== currentSaved
+            ) {
                 const u = new URLSearchParams(searchParams.toString());
                 if (search) u.set("q", search); else u.delete("q");
-                if (activeCategory !== "ALL") u.set("category", activeCategory); else u.delete("category");
+                if (categoryParam !== "ALL") u.set("category", categoryParam); else u.delete("category");
                 if (limit !== 25) u.set("limit", limit.toString()); else u.delete("limit");
+                if (isSaved) u.set("saved", "true"); else u.delete("saved");
                 u.delete("page");
                 startTransition(() => {
                     router.push(`${pathname}?${u.toString()}`);
@@ -216,9 +317,8 @@ export default function LibraryClient({
         const u = new URLSearchParams(searchParams.toString());
         u.set("page", p.toString());
         startTransition(() => {
-            router.push(`${pathname}?${u.toString()}`);
+            router.push(`${pathname}?${u.toString()}`, { scroll: false });
         });
-        window.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
     }
 
     async function handleSignOut() {
@@ -316,7 +416,7 @@ export default function LibraryClient({
                                 marginRight: 4
                             }}
                         >
-                            {totalBooks} {totalBooks === 1 ? 'ebook' : 'ebooks'}
+                            {totalBooks} {totalBooks === 1 ? "ebook" : "ebooks"}
                         </div>
 
                         {/* View toggle */}
@@ -358,6 +458,8 @@ export default function LibraryClient({
                             </button>
                         )}
 
+                        <SyncEngineButton userRole={user.role} />
+
                         {/* User menu */}
                         <ProfileDrawer
                             user={user}
@@ -367,7 +469,7 @@ export default function LibraryClient({
                     </div>
                 </div>
 
-                {/* ── Category Filter Bar ────────────────────────── */}
+                {/* ── Category + My List Filter Bar ────────────────────────── */}
                 <div
                     style={{
                         maxWidth: 1200,
@@ -377,7 +479,6 @@ export default function LibraryClient({
                         display: "flex",
                         gap: 8,
                         scrollbarWidth: "none",
-                        /* Hide scrollbar on webkit */
                         msOverflowStyle: "none",
                     }}
                     className="hide-scrollbar"
@@ -386,6 +487,7 @@ export default function LibraryClient({
                 >
                     {CHIPS.map(chip => {
                         const isActive = activeCategory === chip.value;
+                        const isSavedChip = chip.value === "SAVED";
                         return (
                             <motion.button
                                 key={chip.value}
@@ -400,17 +502,38 @@ export default function LibraryClient({
                                     borderRadius: 99,
                                     border: isActive
                                         ? "1.5px solid #1A1A1A"
-                                        : "1.5px solid var(--color-border)",
-                                    background: isActive ? "#1A1A1A" : "#FFFDF9",
-                                    color: isActive ? "#FAFAF8" : "var(--color-text-muted)",
+                                        : isSavedChip
+                                            ? "1.5px solid var(--color-accent)"
+                                            : "1.5px solid var(--color-border)",
+                                    background: isActive
+                                        ? "#1A1A1A"
+                                        : isSavedChip
+                                            ? "var(--color-accent-soft)"
+                                            : "#FFFDF9",
+                                    color: isActive
+                                        ? "#FAFAF8"
+                                        : isSavedChip
+                                            ? "var(--color-accent)"
+                                            : "var(--color-text-muted)",
                                     fontSize: 13,
-                                    fontWeight: isActive ? 600 : 400,
+                                    fontWeight: isActive ? 600 : isSavedChip ? 500 : 400,
                                     cursor: "pointer",
                                     transition: "all 0.18s ease",
                                     whiteSpace: "nowrap",
                                     letterSpacing: "0.01em",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 5,
                                 }}
                             >
+                                {isSavedChip && (
+                                    <Heart
+                                        size={11}
+                                        strokeWidth={1.5}
+                                        fill={isActive ? "#FAFAF8" : "none"}
+                                        color={isActive ? "#FAFAF8" : "var(--color-accent)"}
+                                    />
+                                )}
                                 {chip.label}
                             </motion.button>
                         );
@@ -451,40 +574,38 @@ export default function LibraryClient({
                                     width: 72,
                                     height: 72,
                                     borderRadius: "var(--radius-lg)",
-                                    background: "var(--color-accent-soft)",
+                                    background: activeCategory === "SAVED"
+                                        ? "rgba(139,105,20,0.08)"
+                                        : "var(--color-accent-soft)",
                                     display: "flex",
                                     alignItems: "center",
                                     justifyContent: "center",
                                     marginBottom: 20,
                                 }}
                             >
-                                <BookOpen size={32} strokeWidth={1.5} color="var(--color-accent)" />
+                                {activeCategory === "SAVED"
+                                    ? <Heart size={32} strokeWidth={1.5} color="var(--color-accent)" />
+                                    : <BookOpen size={32} strokeWidth={1.5} color="var(--color-accent)" />
+                                }
                             </div>
                             <h2 style={{ fontFamily: "var(--font-serif)", fontSize: 22, color: "var(--color-ink)", marginBottom: 8 }}>
-                                {search
-                                    ? "No books found"
-                                    : activeCategory !== "ALL"
-                                        ? `No books in "${CATEGORY_LABEL[activeCategory]}"`
-                                        : "Your library is empty"}
+                                {activeCategory === "SAVED"
+                                    ? "Your reading list is empty"
+                                    : search
+                                        ? "No books found"
+                                        : activeCategory !== "ALL"
+                                            ? `No books in "${CATEGORY_LABEL[activeCategory]}"`
+                                            : "Your library is empty"}
                             </h2>
                             <p style={{ fontSize: 14, color: "var(--color-text-muted)", maxWidth: 340, lineHeight: 1.6, fontFamily: "var(--font-serif)", fontStyle: "italic" }}>
-                                {search
-                                    ? "Try a different search term or clear the filter."
-                                    : activeCategory !== "ALL"
-                                        ? "Add a book and assign it to this category, or choose a different filter."
-                                        : "Connect your cloud storage or add a book to start reading."}
+                                {activeCategory === "SAVED"
+                                    ? "Tap the bookmark icon on any book to save it to your personal reading list."
+                                    : search
+                                        ? "Try a different search term or clear the filter."
+                                        : activeCategory !== "ALL"
+                                            ? "Add a book and assign it to this category, or choose a different filter."
+                                            : "Connect your cloud storage or add a book to start reading."}
                             </p>
-                            {!search && activeCategory === "ALL" && canAdd && (
-                                <button
-                                    className="btn btn-primary"
-                                    onClick={() => setShowAdd(true)}
-                                    style={{ marginTop: 24 }}
-                                    id="empty-add-book-btn"
-                                >
-                                    <Plus size={16} strokeWidth={2} />
-                                    Add your first book
-                                </button>
-                            )}
                             {activeCategory !== "ALL" && (
                                 <button
                                     className="btn"
@@ -504,6 +625,17 @@ export default function LibraryClient({
                                     Show all books
                                 </button>
                             )}
+                            {!search && activeCategory === "ALL" && canAdd && (
+                                <button
+                                    className="btn btn-primary"
+                                    onClick={() => setShowAdd(true)}
+                                    style={{ marginTop: 24 }}
+                                    id="empty-add-book-btn"
+                                >
+                                    <Plus size={16} strokeWidth={2} />
+                                    Add your first book
+                                </button>
+                            )}
                         </motion.div>
                     )}
                 </AnimatePresence>
@@ -520,7 +652,7 @@ export default function LibraryClient({
                     >
                         <AnimatePresence mode="popLayout">
                             {books.map((book, i) => (
-                                <BookCard key={book.id} book={book} index={i} />
+                                <BookCard key={book.id} book={book} index={i} onSaveToggle={handleSaveToggle} />
                             ))}
                         </AnimatePresence>
                     </motion.div>
@@ -531,7 +663,7 @@ export default function LibraryClient({
                     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                         <AnimatePresence mode="popLayout">
                             {books.map((book, i) => (
-                                <BookRow key={book.id} book={book} index={i} />
+                                <BookRow key={book.id} book={book} index={i} onSaveToggle={handleSaveToggle} />
                             ))}
                         </AnimatePresence>
                     </div>
@@ -544,7 +676,7 @@ export default function LibraryClient({
                         style={{
                             marginTop: 32,
                             opacity: isPending ? 0.6 : 1,
-                            transition: 'opacity 0.2s',
+                            transition: "opacity 0.2s",
                             background: "var(--color-surface)",
                             padding: "16px 20px",
                             borderRadius: "var(--radius-lg)",
@@ -646,7 +778,22 @@ export default function LibraryClient({
 }
 
 /* ── Book Card (Grid) ──────────────────────────────── */
-function BookCard({ book, index }: { book: Book; index: number }) {
+function BookCard({
+    book,
+    index,
+    onSaveToggle,
+}: {
+    book: Book;
+    index: number;
+    onSaveToggle: (bookId: string, saved: boolean) => void;
+}) {
+    // Resolve progress: prefer per-user progress, fallback to global
+    const progressLastPage = book.userProgress?.lastPage ?? book.lastPageRead;
+    const progressTotalPage = book.userProgress?.totalPage ?? book.totalPageCount ?? 0;
+    const progressPct = progressTotalPage > 0 && progressLastPage > 0
+        ? Math.min(100, (progressLastPage / progressTotalPage) * 100)
+        : 0;
+
     return (
         <motion.div
             layout
@@ -669,19 +816,22 @@ function BookCard({ book, index }: { book: Book; index: number }) {
                     >
                         <BookCover book={book} fontSize={28} />
 
-                        {/* Progress bar */}
-                        {book.totalPageCount && book.lastPageRead > 0 && (
-                            <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 3, background: "rgba(0,0,0,0.1)" }}>
+                        {/* Reading Progress bar */}
+                        {progressPct > 0 && (
+                            <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 3, background: "rgba(0,0,0,0.1)", zIndex: 1 }}>
                                 <div
                                     style={{
                                         height: "100%",
-                                        width: `${(book.lastPageRead / book.totalPageCount) * 100}%`,
+                                        width: `${progressPct}%`,
                                         background: "var(--color-accent)",
                                         transition: "width 0.3s ease",
                                     }}
                                 />
                             </div>
                         )}
+
+                        {/* Save/Bookmark button */}
+                        <SaveButton book={book} onToggle={onSaveToggle} />
 
                         {/* Provider badge */}
                         <div
@@ -706,7 +856,7 @@ function BookCard({ book, index }: { book: Book; index: number }) {
                             <div
                                 style={{
                                     position: "absolute",
-                                    bottom: 8,
+                                    bottom: progressPct > 0 ? 7 : 8,
                                     left: 8,
                                     padding: "2px 7px",
                                     borderRadius: 99,
@@ -717,6 +867,8 @@ function BookCard({ book, index }: { book: Book; index: number }) {
                                     letterSpacing: "0.04em",
                                     textTransform: "uppercase",
                                     backdropFilter: "blur(4px)",
+                                    zIndex: 1,
+                                    marginBottom: progressPct > 0 ? 3 : 0,
                                 }}
                             >
                                 {CATEGORY_LABEL[book.category] ?? book.category}
@@ -743,6 +895,11 @@ function BookCard({ book, index }: { book: Book; index: number }) {
                                 {truncate(book.author, 30)}
                             </p>
                         )}
+                        {progressPct > 0 && (
+                            <p style={{ fontSize: 11, color: "var(--color-accent)", marginTop: 6, fontWeight: 500, letterSpacing: "0.01em" }}>
+                                p. {progressLastPage}/{progressTotalPage} · {Math.round(progressPct)}%
+                            </p>
+                        )}
                     </div>
                 </div>
             </Link>
@@ -751,7 +908,21 @@ function BookCard({ book, index }: { book: Book; index: number }) {
 }
 
 /* ── Book Row (List) ────────────────────────────────── */
-function BookRow({ book, index }: { book: Book; index: number }) {
+function BookRow({
+    book,
+    index,
+    onSaveToggle,
+}: {
+    book: Book;
+    index: number;
+    onSaveToggle: (bookId: string, saved: boolean) => void;
+}) {
+    const progressLastPage = book.userProgress?.lastPage ?? book.lastPageRead;
+    const progressTotalPage = book.userProgress?.totalPage ?? book.totalPageCount ?? 0;
+    const progressPct = progressTotalPage > 0 && progressLastPage > 0
+        ? Math.min(100, (progressLastPage / progressTotalPage) * 100)
+        : 0;
+
     return (
         <motion.div
             layout
@@ -760,87 +931,118 @@ function BookRow({ book, index }: { book: Book; index: number }) {
             exit={{ opacity: 0, x: 12 }}
             transition={{ delay: index * 0.03, duration: 0.3 }}
         >
-            <Link href={`/reader/${book.id}`} style={{ textDecoration: "none" }}>
-                <div
-                    style={{
-                        background: "var(--color-surface)",
-                        border: "1px solid var(--color-border)",
-                        borderRadius: "var(--radius-md)",
-                        padding: "14px 18px",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 16,
-                        cursor: "pointer",
-                        transition: "all 0.2s ease",
-                    }}
-                    onMouseEnter={e => {
-                        (e.currentTarget as HTMLElement).style.background = "var(--color-surface-2)";
-                        (e.currentTarget as HTMLElement).style.borderColor = "var(--color-border-2)";
-                    }}
-                    onMouseLeave={e => {
-                        (e.currentTarget as HTMLElement).style.background = "var(--color-surface)";
-                        (e.currentTarget as HTMLElement).style.borderColor = "var(--color-border)";
-                    }}
-                >
-                    {/* Thumbnail */}
+            <div style={{ position: "relative" }}>
+                <Link href={`/reader/${book.id}`} style={{ textDecoration: "none" }}>
                     <div
                         style={{
-                            width: 40,
-                            height: 56,
-                            borderRadius: "var(--radius-sm)",
-                            background: `linear-gradient(135deg, ${providerColor[book.provider]}20 0%, var(--color-surface-2) 100%)`,
+                            background: "var(--color-surface)",
+                            border: "1px solid var(--color-border)",
+                            borderRadius: "var(--radius-md)",
+                            padding: "14px 18px",
                             display: "flex",
                             alignItems: "center",
-                            justifyContent: "center",
-                            flexShrink: 0,
+                            gap: 16,
+                            cursor: "pointer",
+                            transition: "all 0.2s ease",
                             overflow: "hidden",
-                            position: "relative",
+                        }}
+                        onMouseEnter={e => {
+                            (e.currentTarget as HTMLElement).style.background = "var(--color-surface-2)";
+                            (e.currentTarget as HTMLElement).style.borderColor = "var(--color-border-2)";
+                        }}
+                        onMouseLeave={e => {
+                            (e.currentTarget as HTMLElement).style.background = "var(--color-surface)";
+                            (e.currentTarget as HTMLElement).style.borderColor = "var(--color-border)";
                         }}
                     >
-                        <BookCover book={book} fontSize={14} />
-                    </div>
+                        {/* Thumbnail */}
+                        <div
+                            style={{
+                                width: 40,
+                                height: 56,
+                                borderRadius: "var(--radius-sm)",
+                                background: `linear-gradient(135deg, ${providerColor[book.provider]}20 0%, var(--color-surface-2) 100%)`,
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                flexShrink: 0,
+                                overflow: "hidden",
+                                position: "relative",
+                            }}
+                        >
+                            <BookCover book={book} fontSize={14} />
+                        </div>
 
-                    {/* Text */}
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                        <p style={{ fontFamily: "var(--font-serif)", fontSize: 15, fontWeight: 600, color: "var(--color-ink)", marginBottom: 2 }}>
-                            {book.title}
-                        </p>
-                        {book.author && (
-                            <p style={{ fontSize: 13, color: "var(--color-text-faint)" }}>{book.author}</p>
-                        )}
-                    </div>
+                        {/* Text */}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                            <p style={{ fontFamily: "var(--font-serif)", fontSize: 15, fontWeight: 600, color: "var(--color-ink)", marginBottom: 2 }}>
+                                {book.title}
+                            </p>
+                            {book.author && (
+                                <p style={{ fontSize: 13, color: "var(--color-text-faint)" }}>{book.author}</p>
+                            )}
 
-                    {/* Right meta */}
-                    <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
-                        {book.category && (
-                            <span
-                                style={{
-                                    padding: "3px 10px",
-                                    borderRadius: 99,
-                                    fontSize: 11,
-                                    fontWeight: 500,
-                                    background: "#FFFDF9",
-                                    border: "1px solid var(--color-border)",
-                                    color: "var(--color-text-muted)",
-                                    whiteSpace: "nowrap",
-                                }}
-                            >
-                                {CATEGORY_LABEL[book.category] ?? book.category}
-                            </span>
-                        )}
-                        {book.fileSize && (
-                            <span style={{ fontSize: 12, color: "var(--color-text-faint)" }}>
-                                {formatBytes(book.fileSize)}
-                            </span>
-                        )}
-                        {book.totalPageCount && book.lastPageRead > 0 && (
-                            <span style={{ fontSize: 12, color: "var(--color-text-muted)" }}>
-                                p. {book.lastPageRead}/{book.totalPageCount}
-                            </span>
-                        )}
+                            {/* Inline progress bar for list view */}
+                            {progressPct > 0 && (
+                                <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 8 }}>
+                                    <div style={{ flex: 1, height: 3, background: "var(--color-border)", borderRadius: 99, overflow: "hidden", maxWidth: 120 }}>
+                                        <div
+                                            style={{
+                                                height: "100%",
+                                                width: `${progressPct}%`,
+                                                background: "var(--color-accent)",
+                                                borderRadius: 99,
+                                                transition: "width 0.3s ease",
+                                            }}
+                                        />
+                                    </div>
+                                    <span style={{ fontSize: 11, color: "var(--color-accent)", fontWeight: 500 }}>
+                                        p. {progressLastPage}/{progressTotalPage}
+                                    </span>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Right meta */}
+                        <div style={{ display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
+                            {book.category && (
+                                <span
+                                    style={{
+                                        padding: "3px 10px",
+                                        borderRadius: 99,
+                                        fontSize: 11,
+                                        fontWeight: 500,
+                                        background: "#FFFDF9",
+                                        border: "1px solid var(--color-border)",
+                                        color: "var(--color-text-muted)",
+                                        whiteSpace: "nowrap",
+                                    }}
+                                >
+                                    {CATEGORY_LABEL[book.category] ?? book.category}
+                                </span>
+                            )}
+                            {book.fileSize && (
+                                <span style={{ fontSize: 12, color: "var(--color-text-faint)" }}>
+                                    {formatBytes(book.fileSize)}
+                                </span>
+                            )}
+                        </div>
                     </div>
+                </Link>
+
+                {/* Save button for list view — outside the Link */}
+                <div
+                    style={{
+                        position: "absolute",
+                        top: "50%",
+                        right: 56,
+                        transform: "translateY(-50%)",
+                        zIndex: 2,
+                    }}
+                >
+                    <SaveButton book={book} onToggle={onSaveToggle} />
                 </div>
-            </Link>
+            </div>
         </motion.div>
     );
 }

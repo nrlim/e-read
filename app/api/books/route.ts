@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { canAddBook } from "@/lib/types";
 import { extractDriveFileId } from "@/lib/gdrive-client";
+import { getDriveClient } from "@/lib/gdrive";
 
 export async function GET() {
     const user = await getSession();
@@ -57,6 +58,18 @@ export async function POST(req: NextRequest) {
             const isValidCustomCover = finalCoverUrl && !finalCoverUrl.includes("drive.google.com");
             if (!isValidCustomCover) {
                 finalCoverUrl = `https://drive.google.com/thumbnail?id=${fileId}&sz=w600`;
+                try {
+                    const drive = getDriveClient();
+                    const res: any = await drive.files.get({
+                        fileId: fileId,
+                        fields: "id, thumbnailLink, hasThumbnail"
+                    });
+                    if (res.data && res.data.hasThumbnail && res.data.thumbnailLink) {
+                        finalCoverUrl = res.data.thumbnailLink.replace(/=s\d+/, "=s600");
+                    }
+                } catch (err) {
+                    console.error("[BOOKS_POST] Failed to fetch thumbnailLink", err);
+                }
             }
         }
 

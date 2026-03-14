@@ -27,6 +27,30 @@ export interface Book {
     createdAt: Date;
     updatedAt: Date;
     userId: string;
+    /** Whether the current user has saved this book to their personal list */
+    savedByUser?: boolean;
+    /** Per-user reading progress (populated server-side when available) */
+    userProgress?: {
+        lastPage: number;
+        totalPage: number;
+        lastReadAt?: Date | string;
+    } | null;
+}
+
+export interface ReadingProgress {
+    id: string;
+    userId: string;
+    bookId: string;
+    lastPage: number;
+    totalPage: number;
+    lastReadAt: Date;
+}
+
+export interface PersonalListEntry {
+    id: string;
+    userId: string;
+    bookId: string;
+    savedAt: Date;
 }
 
 export interface User {

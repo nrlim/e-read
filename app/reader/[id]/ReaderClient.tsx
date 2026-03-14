@@ -107,6 +107,8 @@ export default function ReaderClient({ book }: { book: Book }) {
     const [zoom, setZoom] = useState(100); // percentage, 50-200
     const [showSettings, setShowSettings] = useState(false);
     const [theme, setTheme] = useState<ThemeKey>("warm");
+    const [resumeToast, setResumeToast] = useState<{ page: number } | null>(null);
+    const initialPageRef = useRef(Math.max(1, book.lastPageRead));
 
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const pdfDocRef = useRef<import("pdfjs-dist").PDFDocumentProxy | null>(null);
@@ -165,7 +167,7 @@ export default function ReaderClient({ book }: { book: Book }) {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentPage, totalPages]);
 
-    // ── Load PDF document ─────────────────────────────────────────────────────
+    // ── Load PDF document (with Smart Resume) ────────────────────────────────
     useEffect(() => {
         let cancelled = false;
 
@@ -173,6 +175,28 @@ export default function ReaderClient({ book }: { book: Book }) {
             setLoadStatus("loading");
             setErrorMsg("");
             try {
+                // Fetch per-user reading progress first
+                const progressRes = await fetch(`/api/books/${book.id}/progress`);
+                let resumePage = Math.max(1, book.lastPageRead);
+                if (progressRes.ok) {
+                    const progressData = await progressRes.json();
+                    if (progressData.lastPage && progressData.lastPage > 1) {
+                        resumePage = progressData.lastPage;
+                    }
+                }
+
+                if (cancelled) return;
+
+                // Jump to saved page
+                if (resumePage > 1) {
+                    setCurrentPage(resumePage);
+                    setPageInput(String(resumePage));
+                    initialPageRef.current = resumePage;
+                    setResumeToast({ page: resumePage });
+                    // Auto-dismiss toast
+                    setTimeout(() => setResumeToast(null), 3500);
+                }
+
                 const lib = await getPdfjs();
                 const loadingTask = lib.getDocument({ url: proxyUrl, withCredentials: true });
                 const doc = await loadingTask.promise;
@@ -182,12 +206,13 @@ export default function ReaderClient({ book }: { book: Book }) {
                 const numPages = doc.numPages;
                 setTotalPages(numPages);
 
+                // Update total page count if changed
                 if (!book.totalPageCount || book.totalPageCount !== numPages) {
                     await fetch(`/api/books/${book.id}/progress`, {
                         method: "PATCH",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
-                            lastPageRead: Math.max(1, book.lastPageRead),
+                            lastPageRead: resumePage,
                             totalPageCount: numPages,
                         }),
                     });
@@ -279,7 +304,8 @@ export default function ReaderClient({ book }: { book: Book }) {
             const renderTask = page.render({
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 canvas: offCanvas as any,
-                canvasContext: offCtx,
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                canvasContext: offCtx as any,
                 viewport,
             });
             renderTaskRef.current = renderTask;
@@ -353,7 +379,7 @@ export default function ReaderClient({ book }: { book: Book }) {
         return () => { obs.disconnect(); clearTimeout(resizeTimer); };
     }, [renderCurrentPage]);
 
-    // ── Debounced progress save ───────────────────────────────────────────────
+    // ── Debounced progress save (500ms) ──────────────────────────────────────
     // eslint-disable-next-line react-hooks/exhaustive-deps
     const debouncedSave = useCallback(
         debounce(async (page: number, total: number) => {
@@ -367,7 +393,7 @@ export default function ReaderClient({ book }: { book: Book }) {
             } finally {
                 setSaving(false);
             }
-        }, 1200),
+        }, 500),
         [book.id]
     );
 
@@ -459,6 +485,91 @@ export default function ReaderClient({ book }: { book: Book }) {
                 transition: "background 0.4s ease",
             }}
         >
+            {/* ── Resume Toast ──────────────────────────────────────────────── */}
+            <AnimatePresence>
+                {resumeToast && (
+                    <motion.div
+                        key="resume-toast"
+                        initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 20, scale: 0.95 }}
+                        transition={{ duration: 0.28, ease: [0.25, 0.46, 0.45, 0.94] }}
+                        style={{
+                            position: "absolute",
+                            bottom: 88,
+                            left: "50%",
+                            transform: "translateX(-50%)",
+                            zIndex: 50,
+                            background: isNight
+                                ? "rgba(30,26,22,0.97)"
+                                : "rgba(253,251,246,0.97)",
+                            backdropFilter: "blur(18px)",
+                            border: `1px solid ${isNight ? "rgba(255,255,255,0.1)" : "rgba(180,160,110,0.3)"}`,
+                            borderRadius: 14,
+                            padding: "10px 18px",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 10,
+                            boxShadow: isNight
+                                ? "0 6px 32px rgba(0,0,0,0.5)"
+                                : "0 6px 32px rgba(0,0,0,0.12), 0 1px 4px rgba(0,0,0,0.06)",
+                            pointerEvents: "none",
+                            whiteSpace: "nowrap",
+                        }}
+                        role="status"
+                        aria-live="polite"
+                    >
+                        <div
+                            style={{
+                                width: 28,
+                                height: 28,
+                                borderRadius: 8,
+                                background: "var(--color-accent-soft)",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                flexShrink: 0,
+                            }}
+                        >
+                            <BookOpen size={14} strokeWidth={1.5} color="var(--color-accent)" />
+                        </div>
+                        <div>
+                            <p style={{
+                                fontSize: 13,
+                                fontWeight: 600,
+                                color: isNight ? "#D4CCBF" : "var(--color-ink)",
+                                lineHeight: 1.3,
+                                fontFamily: "var(--font-serif)",
+                            }}>
+                                Resuming from page {resumeToast.page}
+                            </p>
+                            <p style={{
+                                fontSize: 11,
+                                color: isNight ? "#6B6258" : "var(--color-text-faint)",
+                                marginTop: 1,
+                            }}>
+                                Picking up where you left off
+                            </p>
+                        </div>
+                        <button
+                            onClick={() => setResumeToast(null)}
+                            style={{
+                                background: "none",
+                                border: "none",
+                                cursor: "pointer",
+                                color: isNight ? "#6B6258" : "var(--color-text-faint)",
+                                display: "flex",
+                                padding: 2,
+                                pointerEvents: "auto",
+                            }}
+                            aria-label="Dismiss"
+                        >
+                            <X size={12} strokeWidth={1.5} />
+                        </button>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
             {/* Warm paper overlay */}
             {!isNight && (
                 <div
