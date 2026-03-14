@@ -203,7 +203,7 @@ export default function LibraryClient({
                 if (search) u.set("q", search); else u.delete("q");
                 if (activeCategory !== "ALL") u.set("category", activeCategory); else u.delete("category");
                 if (limit !== 25) u.set("limit", limit.toString()); else u.delete("limit");
-                u.delete("page"); 
+                u.delete("page");
                 startTransition(() => {
                     router.push(`${pathname}?${u.toString()}`);
                 });
@@ -300,15 +300,15 @@ export default function LibraryClient({
 
                     <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
                         {/* Total Count */}
-                        <div 
+                        <div
                             className="hidden sm:flex"
-                            style={{ 
-                                padding: "4px 10px", 
-                                background: "var(--color-surface-2)", 
-                                borderRadius: "var(--radius-sm)", 
+                            style={{
+                                padding: "4px 10px",
+                                background: "var(--color-surface-2)",
+                                borderRadius: "var(--radius-sm)",
                                 border: "1px solid var(--color-border)",
-                                fontSize: 13, 
-                                fontWeight: 500, 
+                                fontSize: 13,
+                                fontWeight: 500,
                                 color: "var(--color-text-muted)",
                                 whiteSpace: "nowrap",
                                 alignItems: "center",
@@ -316,7 +316,7 @@ export default function LibraryClient({
                                 marginRight: 4
                             }}
                         >
-                            {totalBooks} {totalBooks === 1 ? 'item' : 'items'}
+                            {totalBooks} {totalBooks === 1 ? 'ebook' : 'ebooks'}
                         </div>
 
                         {/* View toggle */}
@@ -539,11 +539,11 @@ export default function LibraryClient({
 
                 {/* Bottom Pagination Control Bar */}
                 {(totalPages > 1 || books.length > 0) && (
-                    <div 
+                    <div
                         className="flex flex-col sm:flex-row justify-between items-center w-full gap-4 sm:gap-6"
-                        style={{ 
+                        style={{
                             marginTop: 32,
-                            opacity: isPending ? 0.6 : 1, 
+                            opacity: isPending ? 0.6 : 1,
                             transition: 'opacity 0.2s',
                             background: "var(--color-surface)",
                             padding: "16px 20px",
@@ -554,16 +554,16 @@ export default function LibraryClient({
                     >
                         <div className="flex items-center justify-center w-full sm:w-auto gap-3" style={{ fontSize: 13, color: "var(--color-text-faint)" }}>
                             <span>Show</span>
-                            <select 
-                                value={limit} 
+                            <select
+                                value={limit}
                                 onChange={(e) => setLimit(parseInt(e.target.value))}
                                 disabled={isPending}
                                 className="input"
-                                style={{ 
-                                    padding: "6px 12px", 
+                                style={{
+                                    padding: "6px 12px",
                                     minHeight: 36,
                                     height: 36,
-                                    borderRadius: "var(--radius-sm)", 
+                                    borderRadius: "var(--radius-sm)",
                                     fontSize: 14,
                                     fontWeight: 500,
                                     width: "auto"
@@ -582,10 +582,10 @@ export default function LibraryClient({
                                     className="btn-ghost"
                                     disabled={currentPage <= 1 || isPending}
                                     onClick={() => goToPage(currentPage - 1)}
-                                    style={{ 
-                                        padding: "8px 20px", 
-                                        borderRadius: "var(--radius-sm)", 
-                                        cursor: currentPage <= 1 ? "not-allowed" : "pointer", 
+                                    style={{
+                                        padding: "8px 20px",
+                                        borderRadius: "var(--radius-sm)",
+                                        cursor: currentPage <= 1 ? "not-allowed" : "pointer",
                                         opacity: currentPage <= 1 ? 0.4 : 1,
                                         fontSize: 14,
                                         fontWeight: 600,
@@ -595,14 +595,14 @@ export default function LibraryClient({
                                 >
                                     Prev
                                 </button>
-                                
-                                <div style={{ 
+
+                                <div style={{
                                     padding: "8px 16px",
                                     borderRadius: "var(--radius-sm)",
                                     background: "var(--color-surface-2)",
                                     border: "1px solid var(--color-border)",
-                                    fontSize: 14, 
-                                    color: "var(--color-ink)", 
+                                    fontSize: 14,
+                                    color: "var(--color-ink)",
                                     fontWeight: 600,
                                     minWidth: "80px",
                                     textAlign: "center",
@@ -615,10 +615,10 @@ export default function LibraryClient({
                                     className="btn-ghost"
                                     disabled={currentPage >= totalPages || isPending}
                                     onClick={() => goToPage(currentPage + 1)}
-                                    style={{ 
-                                        padding: "8px 20px", 
-                                        borderRadius: "var(--radius-sm)", 
-                                        cursor: currentPage >= totalPages ? "not-allowed" : "pointer", 
+                                    style={{
+                                        padding: "8px 20px",
+                                        borderRadius: "var(--radius-sm)",
+                                        cursor: currentPage >= totalPages ? "not-allowed" : "pointer",
                                         opacity: currentPage >= totalPages ? 0.4 : 1,
                                         fontSize: 14,
                                         fontWeight: 600,
@@ -670,12 +670,12 @@ function BookCard({ book, index }: { book: Book; index: number }) {
                         <BookCover book={book} fontSize={28} />
 
                         {/* Progress bar */}
-                        {book.totalPages && book.currentPage > 0 && (
+                        {book.totalPageCount && book.lastPageRead > 0 && (
                             <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 3, background: "rgba(0,0,0,0.1)" }}>
                                 <div
                                     style={{
                                         height: "100%",
-                                        width: `${(book.currentPage / book.totalPages) * 100}%`,
+                                        width: `${(book.lastPageRead / book.totalPageCount) * 100}%`,
                                         background: "var(--color-accent)",
                                         transition: "width 0.3s ease",
                                     }}
@@ -833,9 +833,9 @@ function BookRow({ book, index }: { book: Book; index: number }) {
                                 {formatBytes(book.fileSize)}
                             </span>
                         )}
-                        {book.totalPages && book.currentPage > 0 && (
+                        {book.totalPageCount && book.lastPageRead > 0 && (
                             <span style={{ fontSize: 12, color: "var(--color-text-muted)" }}>
-                                p. {book.currentPage}/{book.totalPages}
+                                p. {book.lastPageRead}/{book.totalPageCount}
                             </span>
                         )}
                     </div>

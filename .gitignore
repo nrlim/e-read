@@ -41,3 +41,10 @@ yarn-error.log*
 next-env.d.ts
 
 /app/generated/prisma
+
+# Google Service Account keys (never commit these!)
+*.json
+!package.json
+!package-lock.json
+!tsconfig.json
+!tsconfig.tsbuildinfo

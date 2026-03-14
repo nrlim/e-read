@@ -1,27 +1,24 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
 }
 
 model User {
-  id                 String   @id @default(cuid())
-  email              String   @unique
-  password           String
-  name               String?
-  avatar             String?
-  role               UserRole @default(MEMBER)
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-  books              Book[]
-  sessions           Session[]
+  id        String    @id @default(cuid())
+  email     String    @unique
+  password  String
+  name      String?
+  avatar    String?
+  role      UserRole  @default(MEMBER)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  books     Book[]
+  sessions  Session[]
 }
 
 model Session {
@@ -34,22 +31,22 @@ model Session {
 }
 
 model Book {
-  id          String        @id @default(cuid())
-  title       String
-  author      String?
-  coverUrl    String?
-  fileUrl     String
-  provider    CloudProvider
-  currentPage Int           @default(0)
-  totalPages  Int?
-  fileSize    Int?
-  mimeType    String?
-  tags        String[]
-  category    BookCategory?
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-  userId      String
-  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id             String        @id @default(cuid())
+  title          String
+  author         String?
+  coverUrl       String?
+  fileUrl        String
+  provider       CloudProvider
+  lastPageRead   Int           @default(0)
+  totalPageCount Int?
+  fileSize       Int?
+  mimeType       String?
+  tags           String[]
+  category       BookCategory?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  userId         String
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }

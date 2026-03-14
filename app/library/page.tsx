@@ -12,7 +12,9 @@ export default async function LibraryPage(
     }
 ) {
     const user = await getSession();
-    if (!user) redirect("/auth/login");
+    if (!user) {
+        redirect("/api/auth/clear-session?from=/library");
+    }
 
     const searchParams = await props.searchParams;
     const page = typeof searchParams?.page === "string" ? parseInt(searchParams.page) : 1;

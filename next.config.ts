@@ -20,6 +20,16 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "books.google.com" },
     ],
   },
+  webpack: (config, { isServer }) => {
+    if (!isServer) {
+      // pdfjs-dist uses canvas optionally; tell webpack to ignore it on the client
+      config.resolve.alias = {
+        ...config.resolve.alias,
+        canvas: false,
+      };
+    }
+    return config;
+  },
 };
 
 export default withPWA(nextConfig);

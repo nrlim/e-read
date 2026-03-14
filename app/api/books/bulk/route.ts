@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { canAddBook, BookCategory } from "@/lib/types";
+import { canAddBook, CloudProvider, BookCategory } from "@/lib/types";
+import { extractDriveFileId } from "@/lib/gdrive-client";
 
 export async function POST(req: NextRequest) {
     const user = await getSession();
@@ -21,48 +22,48 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "Invalid payload, expected array of books" }, { status: 400 });
         }
 
-        const validProviders = ["GDRIVE", "ONEDRIVE", "LOCAL"];
+        const validProviders: CloudProvider[] = ["GDRIVE", "ONEDRIVE", "LOCAL"];
 
-        const booksToCreate: any[] = [];
+        const booksToCreate: {
+            title: string;
+            author: string | null;
+            fileUrl: string;
+            coverUrl: string | null;
+            provider: CloudProvider;
+            category: BookCategory | null;
+            userId: string;
+        }[] = [];
 
         for (const b of books) {
             const { title, author, fileUrl, coverUrl, provider, category } = b;
+            if (!title || !fileUrl) continue;
 
-            if (!title || !fileUrl) {
-                continue; // Skip invalid rows
-            }
+            const activeProvider: CloudProvider = validProviders.includes(provider as CloudProvider)
+                ? (provider as CloudProvider)
+                : "GDRIVE";
 
-            const activeProvider = validProviders.includes(provider) ? provider : "GDRIVE";
-
-            let finalCoverUrl = coverUrl || null;
+            let normalizedFileUrl = fileUrl as string;
+            let finalCoverUrl: string | null = coverUrl || null;
 
             if (activeProvider === "GDRIVE") {
-                const isValidImage = finalCoverUrl && !finalCoverUrl.includes("drive.google.com/file");
+                const fileId = extractDriveFileId(fileUrl as string);
+                if (!fileId) continue;
 
-                if (!isValidImage) {
-                    const searchUrl = finalCoverUrl || fileUrl;
-                    const matchId = searchUrl.match(/\/d\/([a-zA-Z0-9_-]+)/) || searchUrl.match(/id=([a-zA-Z0-9_-]+)/);
-                    if (matchId && matchId[1]) {
-                        finalCoverUrl = `https://drive.google.com/thumbnail?id=${matchId[1]}&sz=w600`;
-                    } else if (finalCoverUrl && finalCoverUrl.includes("drive.google.com/file")) {
-                        finalCoverUrl = null;
-                    }
+                normalizedFileUrl = fileId;
+                const isValidCustomCover = finalCoverUrl && !finalCoverUrl.includes("drive.google.com");
+                if (!isValidCustomCover) {
+                    finalCoverUrl = `https://drive.google.com/thumbnail?id=${fileId}&sz=w600`;
                 }
             }
 
-            // Simple check to ensure category is valid, if we care. 
-            // The enum in db handles whether it's valid, but we must make sure it matches.
-            // If it doesn't match an expected BookingCategory, Prisma might throw.
-            // So we'll pass the category as-is if it's there.
-
             booksToCreate.push({
-                title,
+                title: title as string,
                 author: author || null,
-                fileUrl,
+                fileUrl: normalizedFileUrl,
                 coverUrl: finalCoverUrl,
                 provider: activeProvider,
-                category: category || null,
-                userId: user.id
+                category: (category as BookCategory) || null,
+                userId: user.id,
             });
         }
 
@@ -71,43 +72,27 @@ export async function POST(req: NextRequest) {
         }
 
         const incomingUrls = Array.from(new Set(booksToCreate.map(b => b.fileUrl)));
-        
+
         const existingBooks = await prisma.book.findMany({
-            where: {
-                fileUrl: { in: incomingUrls }
-            },
-            select: { id: true, fileUrl: true }
+            where: { fileUrl: { in: incomingUrls } },
+            select: { id: true, fileUrl: true },
         });
 
-        const existingMap = new Map();
-        for (const eb of existingBooks) {
-            existingMap.set(eb.fileUrl, eb.id);
-        }
+        const existingMap = new Map(existingBooks.map(eb => [eb.fileUrl, eb.id]));
 
-        const updates = [];
-        const creates = [];
-
-        for (const b of booksToCreate) {
-            const existingId = existingMap.get(b.fileUrl);
-            if (existingId) {
-                updates.push(prisma.book.update({
-                    where: { id: existingId },
-                    data: b
-                }));
-            } else {
-                creates.push(b);
+        // Separate into creates and updates, execute individually (avoids $transaction signature complexity)
+        await prisma.$transaction(async (tx) => {
+            for (const b of booksToCreate) {
+                const existingId = existingMap.get(b.fileUrl);
+                if (existingId) {
+                    await tx.book.update({ where: { id: existingId }, data: b });
+                }
             }
-        }
-        
-        const txOperations: any[] = [...updates];
-        if (creates.length > 0) {
-            txOperations.push(prisma.book.createMany({
-                data: creates,
-                skipDuplicates: true
-            }));
-        }
-
-        await prisma.$transaction(txOperations);
+            const newBooks = booksToCreate.filter(b => !existingMap.has(b.fileUrl));
+            if (newBooks.length > 0) {
+                await tx.book.createMany({ data: newBooks, skipDuplicates: true });
+            }
+        });
 
         return NextResponse.json({ success: true, count: booksToCreate.length }, { status: 201 });
     } catch (err) {

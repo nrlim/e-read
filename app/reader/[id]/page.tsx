@@ -12,7 +12,9 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 export default async function ReaderPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = await params;
     const user = await getSession();
-    if (!user) redirect("/auth/login");
+    if (!user) {
+        redirect(`/api/auth/clear-session?from=/reader/${id}`);
+    }
 
     const book = await prisma.book.findFirst({
         where: { id },

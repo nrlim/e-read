@@ -18,8 +18,8 @@ export interface Book {
     coverUrl: string | null;
     fileUrl: string;
     provider: CloudProvider;
-    currentPage: number;
-    totalPages: number | null;
+    lastPageRead: number;
+    totalPageCount: number | null;
     fileSize: number | null;
     mimeType: string | null;
     tags: string[];

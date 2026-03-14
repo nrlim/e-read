@@ -3,6 +3,11 @@ import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { canDeleteBook } from "@/lib/types";
 
+/**
+ * PATCH /api/books/[id]/progress
+ * Body: { lastPageRead: number; totalPageCount?: number }
+ * Updates reading progress for a book.
+ */
 export async function PATCH(
     req: NextRequest,
     { params }: { params: Promise<{ id: string }> }
@@ -11,19 +16,25 @@ export async function PATCH(
     const user = await getSession();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const { currentPage } = await req.json();
+    const { lastPageRead, totalPageCount } = await req.json();
 
     const book = await prisma.book.findFirst({ where: { id } });
     if (!book) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
     const updated = await prisma.book.update({
         where: { id },
-        data: { currentPage: Number(currentPage) },
+        data: {
+            lastPageRead: Number(lastPageRead),
+            ...(totalPageCount !== undefined && { totalPageCount: Number(totalPageCount) }),
+        },
     });
 
     return NextResponse.json({ book: updated });
 }
 
+/**
+ * DELETE /api/books/[id]/progress  (actually deletes the book)
+ */
 export async function DELETE(
     _req: NextRequest,
     { params }: { params: Promise<{ id: string }> }

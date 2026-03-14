@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { canAddBook } from "@/lib/types";
+import { extractDriveFileId } from "@/lib/gdrive-client";
 
 export async function GET() {
     const user = await getSession();
@@ -38,31 +39,35 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "Invalid provider" }, { status: 400 });
         }
 
+        // ── Normalise fileUrl for GDrive → bare file ID ──────────────
+        let normalizedFileUrl = fileUrl;
         let finalCoverUrl = coverUrl || null;
 
-        // Auto-detect GDrive thumbnail
         if (provider === "GDRIVE") {
-            const isValidImage = finalCoverUrl && !finalCoverUrl.includes("drive.google.com/file");
+            const fileId = extractDriveFileId(fileUrl);
+            if (!fileId) {
+                return NextResponse.json(
+                    { error: "Could not extract a valid Google Drive file ID from the provided URL." },
+                    { status: 400 }
+                );
+            }
+            normalizedFileUrl = fileId;
 
-            if (!isValidImage) {
-                const searchUrl = finalCoverUrl || fileUrl;
-                const matchId = searchUrl.match(/\/d\/([a-zA-Z0-9_-]+)/) || searchUrl.match(/id=([a-zA-Z0-9_-]+)/);
-                if (matchId && matchId[1]) {
-                    finalCoverUrl = `https://drive.google.com/thumbnail?id=${matchId[1]}&sz=w600`;
-                } else if (finalCoverUrl && finalCoverUrl.includes("drive.google.com/file")) {
-                    finalCoverUrl = null;
-                }
+            // Auto-generate thumbnail from file ID unless a custom cover was provided
+            const isValidCustomCover = finalCoverUrl && !finalCoverUrl.includes("drive.google.com");
+            if (!isValidCustomCover) {
+                finalCoverUrl = `https://drive.google.com/thumbnail?id=${fileId}&sz=w600`;
             }
         }
 
         const existingBook = await prisma.book.findFirst({
-            where: { fileUrl }
+            where: { fileUrl: normalizedFileUrl }
         });
 
         const bookData = {
             title,
             author: author || null,
-            fileUrl,
+            fileUrl: normalizedFileUrl,
             coverUrl: finalCoverUrl,
             provider,
             category: category || null,
