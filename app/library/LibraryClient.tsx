@@ -1224,17 +1224,19 @@ function BookCard({
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.9 }}
             transition={{ delay: index * 0.04, duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] }}
-            style={{ height: "100%" }}
+            style={{ height: "100%", width: "100%", minWidth: 0 }}
         >
-            <Link href={`/reader/${book.id}`} style={{ textDecoration: "none", display: "block", height: "100%" }}>
-                <div className="card" style={{ cursor: "pointer", display: "flex", flexDirection: "column", height: "100%" }}>
+            <Link href={`/reader/${book.id}`} style={{ textDecoration: "none", display: "block", height: "100%", width: "100%" }}>
+                <div className="card" style={{ cursor: "pointer", display: "flex", flexDirection: "column", height: "100%", minWidth: 0 }}>
                     {/* Cover — enforced 2:3 book aspect ratio */}
                     <div
                         style={{
+                            width: "100%",
                             aspectRatio: "2/3",
-                            background: `linear-gradient(135deg, ${providerColor[book.provider]}20 0%, var(--color-surface-2) 100%)`,
+                            background: `linear-gradient(135deg, ${providerColor[book.provider] ?? "var(--color-accent)"}20 0%, var(--color-surface-2) 100%)`,
                             position: "relative",
                             overflow: "hidden",
+                            flexShrink: 0,
                         }}
                     >
                         <BookCover book={book} fontSize={28} />
@@ -1267,7 +1269,7 @@ function BookCard({
                                 fontSize: 9,
                                 fontWeight: 500,
                                 background: "rgba(249,247,242,0.92)",
-                                color: providerColor[book.provider],
+                                color: providerColor[book.provider] ?? "var(--color-ink)",
                                 border: "1px solid rgba(255,255,255,0.5)",
                             }}
                         >
@@ -1300,34 +1302,45 @@ function BookCard({
                     </div>
 
                     {/* Meta */}
-                    <div style={{ padding: "10px 10px 12px", flex: 1, display: "flex", flexDirection: "column", justifyContent: "flex-start" }}>
-                        {/* line-clamp-2 keeps heights uniform */}
-                        <p
-                            style={{
-                                fontFamily: "var(--font-serif)",
-                                fontSize: 13,
-                                fontWeight: 600,
-                                color: "var(--color-ink)",
-                                lineHeight: 1.3,
-                                marginBottom: 4,
-                                display: "-webkit-box",
-                                WebkitLineClamp: 2,
-                                WebkitBoxOrient: "vertical" as React.CSSProperties["WebkitBoxOrient"],
-                                overflow: "hidden",
-                            }}
-                        >
-                            {book.title}
-                        </p>
-                        {book.author && (
-                            <p style={{ fontSize: 11, color: "var(--color-text-faint)", lineHeight: 1.4, marginTop: "auto" }}>
-                                {truncate(book.author, 28)}
+                    <div style={{ padding: "10px 10px 12px", display: "flex", flexDirection: "column", flexGrow: 1, justifyContent: "space-between" }}>
+                        <div>
+                            {/* line-clamp-2 and minHeight keeps heights uniform */}
+                            <p
+                                style={{
+                                    fontFamily: "var(--font-serif)",
+                                    fontSize: 13,
+                                    fontWeight: 600,
+                                    color: "var(--color-ink)",
+                                    lineHeight: 1.3,
+                                    marginBottom: 4,
+                                    display: "-webkit-box",
+                                    WebkitLineClamp: 2,
+                                    WebkitBoxOrient: "vertical" as React.CSSProperties["WebkitBoxOrient"],
+                                    overflow: "hidden",
+                                    minHeight: "33.8px", /* 13px * 1.3 * 2 lines */
+                                    wordBreak: "break-word",
+                                }}
+                            >
+                                {book.title}
                             </p>
-                        )}
-                        {progressPct > 0 && (
-                            <p style={{ fontSize: 10, color: "var(--color-accent)", marginTop: 5, fontWeight: 500, letterSpacing: "0.01em" }}>
-                                p. {progressLastPage}/{progressTotalPage} · {Math.round(progressPct)}%
-                            </p>
-                        )}
+                        </div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 5, marginTop: 4 }}>
+                            {book.author ? (
+                                <p style={{ fontSize: 11, color: "var(--color-text-faint)", lineHeight: 1.4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                    {book.author}
+                                </p>
+                            ) : (
+                                <div style={{ height: "15.4px" }} aria-hidden="true" />
+                            )}
+                            
+                            {progressPct > 0 ? (
+                                <p style={{ fontSize: 10, color: "var(--color-accent)", fontWeight: 500, letterSpacing: "0.01em" }}>
+                                    p. {progressLastPage}/{progressTotalPage} · {Math.round(progressPct)}%
+                                </p>
+                            ) : (
+                                <div style={{ height: "14px" }} aria-hidden="true" />
+                            )}
+                        </div>
                     </div>
                 </div>
             </Link>
