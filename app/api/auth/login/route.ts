@@ -43,7 +43,9 @@ export async function POST(req: NextRequest) {
 
         return response;
     } catch (err) {
-        console.error("[LOGIN]", err);
+        if (process.env.NODE_ENV !== "production") {
+            console.error("[LOGIN] Unexpected error:", err instanceof Error ? err.message : String(err));
+        }
         return NextResponse.json({ error: "Internal server error" }, { status: 500 });
     }
 }

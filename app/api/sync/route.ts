@@ -19,7 +19,9 @@ export async function GET(req: NextRequest) {
                 try {
                     controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
                 } catch (err) {
-                    console.error("SSE enqueue error", err);
+                    if (process.env.NODE_ENV !== "production") {
+                        console.error("SSE enqueue error:", err instanceof Error ? err.message : String(err));
+                    }
                 }
             }
 
@@ -161,8 +163,10 @@ export async function GET(req: NextRequest) {
                 sendEvent({ type: "complete", newBooksAdded });
                 controller.close();
             } catch (error: any) {
-                console.error("[SYNC_ERROR]", error);
-                sendEvent({ type: "error", message: error.message || "Unknown error" });
+                if (process.env.NODE_ENV !== "production") {
+                    console.error("[SYNC_ERROR]", error instanceof Error ? error.message : String(error));
+                }
+                sendEvent({ type: "error", message: error?.message || "Unknown error" });
                 controller.close();
             }
         }

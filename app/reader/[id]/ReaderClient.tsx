@@ -222,7 +222,9 @@ export default function ReaderClient({ book }: { book: Book }) {
             } catch (err) {
                 if (cancelled) return;
                 const msg = err instanceof Error ? err.message : "Failed to load PDF";
-                console.error("[ReaderClient] PDF load error:", err);
+                if (process.env.NODE_ENV !== "production") {
+                    console.error("[ReaderClient] PDF load error:", err);
+                }
                 setErrorMsg(msg);
                 setLoadStatus("error");
             }
@@ -349,7 +351,9 @@ export default function ReaderClient({ book }: { book: Book }) {
         } catch (err: unknown) {
             renderTaskRef.current = null;
             if ((err as { name?: string })?.name === "RenderingCancelledException") return;
-            console.error("[ReaderClient] Render error:", err);
+            if (process.env.NODE_ENV !== "production") {
+                console.error("[ReaderClient] Render error:", err);
+            }
         } finally {
             isRenderingRef.current = false;
             if (renderPendingRef.current.isPending) {
@@ -1069,8 +1073,13 @@ export default function ReaderClient({ book }: { book: Book }) {
                         style={{
                             position: "absolute",
                             bottom: 20,
-                            left: "50%",
-                            transform: "translateX(-50%)",
+                            /* True center on all screen widths without clipping */
+                            left: 0,
+                            right: 0,
+                            marginLeft: "auto",
+                            marginRight: "auto",
+                            width: "fit-content",
+                            maxWidth: "calc(100vw - 32px)",
                             zIndex: 10,
                             display: "flex",
                             alignItems: "center",
@@ -1163,8 +1172,10 @@ export default function ReaderClient({ book }: { book: Book }) {
 // ─── Style helpers ────────────────────────────────────────────────────────────
 function navBtnStyle(disabled: boolean, night: boolean): React.CSSProperties {
     return {
-        width: 30,
-        height: 30,
+        /* 40px renders visually as a compact circle; combined with the pill's
+           8px vertical padding the total tappable zone exceeds 44px on mobile */
+        width: 40,
+        height: 40,
         borderRadius: "50%",
         border: `1px solid ${night ? "rgba(255,255,255,0.1)" : "var(--color-border)"}`,
         background: "transparent",

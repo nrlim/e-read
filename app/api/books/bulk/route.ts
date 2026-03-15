@@ -96,7 +96,9 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json({ success: true, count: booksToCreate.length }, { status: 201 });
     } catch (err) {
-        console.error("[BOOKS_BULK_POST]", err);
+        if (process.env.NODE_ENV !== "production") {
+            console.error("[BOOKS_BULK_POST] Unexpected error:", err instanceof Error ? err.message : String(err));
+        }
         return NextResponse.json({ error: "Failed to upload books in bulk" }, { status: 500 });
     }
 }

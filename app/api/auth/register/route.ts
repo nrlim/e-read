@@ -51,7 +51,9 @@ export async function POST(req: NextRequest) {
 
         return response;
     } catch (err) {
-        console.error("[REGISTER]", err);
+        if (process.env.NODE_ENV !== "production") {
+            console.error("[REGISTER] Unexpected error:", err instanceof Error ? err.message : String(err));
+        }
         return NextResponse.json({ error: "Internal server error" }, { status: 500 });
     }
 }

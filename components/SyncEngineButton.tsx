@@ -41,7 +41,9 @@ export default function SyncEngineButton({ userRole }: { userRole: string }) {
                     // Hide toast after 4s
                     setTimeout(() => setShowToast(false), 4000);
                 } else if (data.type === "error") {
-                    console.error("Sync Error:", data.message);
+                    if (process.env.NODE_ENV !== "production") {
+                        console.error("Sync Error:", data.message);
+                    }
                     setToastMessage(`Sync failed: ${data.message}`);
                     setShowToast(true);
                     setIsSyncing(false);
@@ -50,12 +52,16 @@ export default function SyncEngineButton({ userRole }: { userRole: string }) {
                     setTimeout(() => setShowToast(false), 4000);
                 }
             } catch (err) {
-                console.error("Failed to parse SSE data:", err);
+                if (process.env.NODE_ENV !== "production") {
+                    console.error("Failed to parse SSE data:", err);
+                }
             }
         };
 
         eventSource.onerror = (err) => {
-            console.error("EventSource failed:", err);
+            if (process.env.NODE_ENV !== "production") {
+                console.error("EventSource failed:", err);
+            }
             setToastMessage("Connection lost during sync.");
             setShowToast(true);
             setIsSyncing(false);

@@ -60,7 +60,9 @@ export async function GET(
         });
     } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
-        console.error("[/api/read]", msg);
+        if (process.env.NODE_ENV !== "production") {
+            console.error("[/api/read] Error:", msg);
+        }
 
         if (msg.includes("404") || msg.includes("notFound")) {
             return new NextResponse("File not found in Google Drive", { status: 404 });

@@ -68,7 +68,9 @@ export async function POST(req: NextRequest) {
                         finalCoverUrl = res.data.thumbnailLink.replace(/=s\d+/, "=s600");
                     }
                 } catch (err) {
-                    console.error("[BOOKS_POST] Failed to fetch thumbnailLink", err);
+                    if (process.env.NODE_ENV !== "production") {
+                        console.error("[BOOKS_POST] Failed to fetch thumbnailLink:", err instanceof Error ? err.message : String(err));
+                    }
                 }
             }
         }
@@ -101,7 +103,9 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json({ book }, { status: 201 });
     } catch (err) {
-        console.error("[BOOKS_POST]", err);
+        if (process.env.NODE_ENV !== "production") {
+            console.error("[BOOKS_POST] Unexpected error:", err instanceof Error ? err.message : String(err));
+        }
         return NextResponse.json({ error: "Failed to add book" }, { status: 500 });
     }
 }
