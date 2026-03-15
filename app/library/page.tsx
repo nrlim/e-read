@@ -24,6 +24,7 @@ export default async function LibraryPage(
     const userLimit = typeof searchParams?.limit === "string" ? parseInt(searchParams.limit) : 25;
     const limit = [10, 25, 50, 100].includes(userLimit) ? userLimit : 25;
     const savedOnly = searchParams?.saved === "true";
+    const sort = typeof searchParams?.sort === "string" && searchParams.sort === "asc" ? "asc" : "desc";
 
     const where: Prisma.BookWhereInput = {
         AND: [
@@ -44,7 +45,7 @@ export default async function LibraryPage(
 
     const rawBooks = await prisma.book.findMany({
         where,
-        orderBy: { updatedAt: "desc" },
+        orderBy: { title: sort },
         skip: (validPage - 1) * limit,
         take: limit,
         include: {
@@ -94,9 +95,9 @@ export default async function LibraryPage(
             totalPages={totalPages}
             totalBooks={totalBooks}
             initialSearch={q}
-            initialCategory={category}
             initialLimit={limit}
             initialSavedOnly={savedOnly}
+            initialSort={sort}
         />
     );
 }

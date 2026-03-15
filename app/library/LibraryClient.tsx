@@ -5,10 +5,10 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { BookOpen, Plus, Search, Grid3X3, List, Bookmark, Heart, X, RefreshCw, MoreHorizontal } from "lucide-react";
-import type { Book, BookCategory, User, UserRole } from "@/lib/types";
+import type { Book, User, UserRole } from "@/lib/types";
 import { canAddBook } from "@/lib/types";
 import { formatBytes, truncate } from "@/lib/utils";
-import AddBookModal, { CATEGORY_OPTIONS } from "@/components/AddBookModal";
+import AddBookModal from "@/components/AddBookModal";
 import { ProfileDrawer } from "@/components/ProfileDrawer";
 import SyncEngineButton from "@/components/SyncEngineButton";
 
@@ -513,17 +513,12 @@ const providerColor: Record<string, string> = {
     LOCAL: "var(--color-accent)",
 };
 
-type FilterValue = "ALL" | "SAVED" | BookCategory;
+type FilterValue = "ALL" | "SAVED";
 
 const CHIPS: { value: FilterValue; label: string }[] = [
     { value: "ALL", label: "All" },
     { value: "SAVED", label: "My List" },
-    ...CATEGORY_OPTIONS.map(o => ({ value: o.value as FilterValue, label: o.label })),
 ];
-
-const CATEGORY_LABEL: Record<string, string> = Object.fromEntries(
-    CATEGORY_OPTIONS.map(o => [o.value, o.label])
-);
 
 /* ── Component ──────────────────────────────────────── */
 
@@ -534,9 +529,9 @@ export default function LibraryClient({
     totalPages = 1,
     totalBooks = 0,
     initialSearch = "",
-    initialCategory = "ALL",
     initialLimit = 25,
     initialSavedOnly = false,
+    initialSort = "desc",
 }: {
     user: Pick<User, "id" | "name" | "email" | "role">;
     books: Book[];
@@ -544,9 +539,9 @@ export default function LibraryClient({
     totalPages?: number;
     totalBooks?: number;
     initialSearch?: string;
-    initialCategory?: string;
     initialLimit?: number;
     initialSavedOnly?: boolean;
+    initialSort?: string;
 }) {
     const router = useRouter();
     const pathname = usePathname();
@@ -556,8 +551,11 @@ export default function LibraryClient({
     const [books, setBooks] = useState<Book[]>(initialBooks);
     const [search, setSearch] = useState(initialSearch);
     const [limit, setLimit] = useState(initialLimit);
-    const [activeCategory, setActiveCategory] = useState<FilterValue>(
-        initialSavedOnly ? "SAVED" : (initialCategory as FilterValue)
+    const [activeFilter, setActiveFilter] = useState<FilterValue>(
+        initialSavedOnly ? "SAVED" : "ALL"
+    );
+    const [sort, setSort] = useState<"asc" | "desc">(
+        initialSort === "asc" ? "asc" : "desc"
     );
     const [view, setView] = useState<"grid" | "list">("grid");
     const [showAdd, setShowAdd] = useState(false);
@@ -583,31 +581,30 @@ export default function LibraryClient({
         setBooks(prev =>
             prev.map(b => b.id === bookId ? { ...b, savedByUser: saved } : b)
         );
-        if (activeCategory === "SAVED" && !saved) {
+        if (activeFilter === "SAVED" && !saved) {
             setBooks(prev => prev.filter(b => b.id !== bookId));
         }
-    }, [activeCategory]);
+    }, [activeFilter]);
 
     useEffect(() => {
         const timeout = setTimeout(() => {
             const currentQ = searchParams.get("q") || "";
-            const currentC = searchParams.get("category") || "ALL";
             const currentL = parseInt(searchParams.get("limit") || "25");
             const currentSaved = searchParams.get("saved") === "true";
-            const isSaved = activeCategory === "SAVED";
-            const categoryParam = isSaved ? "ALL" : activeCategory;
+            const currentSort = searchParams.get("sort") === "asc" ? "asc" : "desc";
+            const isSaved = activeFilter === "SAVED";
 
             if (
                 search !== currentQ ||
-                categoryParam !== currentC ||
                 limit !== currentL ||
-                isSaved !== currentSaved
+                isSaved !== currentSaved ||
+                sort !== currentSort
             ) {
                 const u = new URLSearchParams(searchParams.toString());
                 if (search) u.set("q", search); else u.delete("q");
-                if (categoryParam !== "ALL") u.set("category", categoryParam); else u.delete("category");
                 if (limit !== 25) u.set("limit", limit.toString()); else u.delete("limit");
                 if (isSaved) u.set("saved", "true"); else u.delete("saved");
+                if (sort !== "desc") u.set("sort", sort); else u.delete("sort");
                 u.delete("page");
                 startTransition(() => {
                     router.push(`${pathname}?${u.toString()}`);
@@ -615,7 +612,7 @@ export default function LibraryClient({
             }
         }, 400);
         return () => clearTimeout(timeout);
-    }, [search, activeCategory, limit, pathname, router, searchParams]);
+    }, [search, activeFilter, sort, limit, pathname, router, searchParams]);
 
     function goToPage(p: number) {
         const u = new URLSearchParams(searchParams.toString());
@@ -858,7 +855,7 @@ export default function LibraryClient({
                     {/* Left padding spacer – aligns first chip with content */}
                     <div style={{ flexShrink: 0, width: 16 }} />
                     {CHIPS.map(chip => {
-                        const isActive = activeCategory === chip.value;
+                        const isActive = activeFilter === chip.value;
                         const isSavedChip = chip.value === "SAVED";
                         return (
                             <motion.button
@@ -866,7 +863,7 @@ export default function LibraryClient({
                                 id={`filter-chip-${chip.value}`}
                                 role="tab"
                                 aria-selected={isActive}
-                                onClick={() => setActiveCategory(chip.value)}
+                                onClick={() => setActiveFilter(chip.value)}
                                 whileTap={{ scale: 0.95 }}
                                 style={{
                                     flexShrink: 0,
@@ -912,6 +909,31 @@ export default function LibraryClient({
                             </motion.button>
                         );
                     })}
+                    {/* Sort Button */}
+                    <motion.button
+                        id="sort-btn"
+                        onClick={() => setSort(s => s === "desc" ? "asc" : "desc")}
+                        whileTap={{ scale: 0.95 }}
+                        style={{
+                            flexShrink: 0,
+                            padding: "9px 16px",
+                            borderRadius: 99,
+                            border: "1.5px solid var(--color-border)",
+                            background: "#FFFDF9",
+                            color: "var(--color-text-muted)",
+                            fontSize: 13,
+                            fontWeight: 500,
+                            cursor: "pointer",
+                            transition: "all 0.18s ease",
+                            whiteSpace: "nowrap",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 6,
+                            marginLeft: "auto",
+                        }}
+                    >
+                        Sort: <strong style={{ color: "var(--color-ink)" }}>{sort === "asc" ? "A to Z" : "Z to A"}</strong>
+                    </motion.button>
                     {/* Right spacer */}
                     <div style={{ flexShrink: 0, width: 8 }} />
                 </div>
@@ -950,7 +972,7 @@ export default function LibraryClient({
                                     width: 72,
                                     height: 72,
                                     borderRadius: "var(--radius-lg)",
-                                    background: activeCategory === "SAVED"
+                                    background: activeFilter === "SAVED"
                                         ? "rgba(139,105,20,0.08)"
                                         : "var(--color-accent-soft)",
                                     display: "flex",
@@ -959,49 +981,26 @@ export default function LibraryClient({
                                     marginBottom: 20,
                                 }}
                             >
-                                {activeCategory === "SAVED"
+                                {activeFilter === "SAVED"
                                     ? <Heart size={32} strokeWidth={1.5} color="var(--color-accent)" />
                                     : <BookOpen size={32} strokeWidth={1.5} color="var(--color-accent)" />
                                 }
                             </div>
                             <h2 style={{ fontFamily: "var(--font-serif)", fontSize: 22, color: "var(--color-ink)", marginBottom: 8 }}>
-                                {activeCategory === "SAVED"
+                                {activeFilter === "SAVED"
                                     ? "Your reading list is empty"
                                     : search
                                         ? "No books found"
-                                        : activeCategory !== "ALL"
-                                            ? `No books in "${CATEGORY_LABEL[activeCategory]}"`
-                                            : "Your library is empty"}
+                                        : "Your library is empty"}
                             </h2>
                             <p style={{ fontSize: 14, color: "var(--color-text-muted)", maxWidth: 340, lineHeight: 1.6, fontFamily: "var(--font-serif)", fontStyle: "italic" }}>
-                                {activeCategory === "SAVED"
+                                {activeFilter === "SAVED"
                                     ? "Tap the bookmark icon on any book to save it to your personal reading list."
                                     : search
                                         ? "Try a different search term or clear the filter."
-                                        : activeCategory !== "ALL"
-                                            ? "Add a book and assign it to this category, or choose a different filter."
-                                            : "Connect your cloud storage or add a book to start reading."}
+                                        : "Connect your cloud storage or add a book to start reading."}
                             </p>
-                            {activeCategory !== "ALL" && (
-                                <button
-                                    className="btn"
-                                    onClick={() => setActiveCategory("ALL")}
-                                    style={{
-                                        marginTop: 20,
-                                        padding: "10px 24px",
-                                        background: "#FFFDF9",
-                                        border: "1.5px solid var(--color-border)",
-                                        borderRadius: 99,
-                                        cursor: "pointer",
-                                        fontSize: 13,
-                                        color: "var(--color-text-muted)",
-                                    }}
-                                    id="empty-clear-filter-btn"
-                                >
-                                    Show all books
-                                </button>
-                            )}
-                            {!search && activeCategory === "ALL" && canAdd && (
+                            {!search && activeFilter === "ALL" && canAdd && (
                                 <button
                                     className="btn btn-primary"
                                     onClick={() => setShowAdd(true)}
@@ -1275,30 +1274,6 @@ function BookCard({
                         >
                             {providerLabel[book.provider] ?? book.provider}
                         </div>
-
-                        {/* Category badge */}
-                        {book.category && (
-                            <div
-                                style={{
-                                    position: "absolute",
-                                    bottom: progressPct > 0 ? 7 : 8,
-                                    left: 8,
-                                    padding: "2px 7px",
-                                    borderRadius: 99,
-                                    fontSize: 9,
-                                    fontWeight: 600,
-                                    background: "rgba(26,26,26,0.78)",
-                                    color: "#FAFAF8",
-                                    letterSpacing: "0.04em",
-                                    textTransform: "uppercase",
-                                    backdropFilter: "blur(4px)",
-                                    zIndex: 1,
-                                    marginBottom: progressPct > 0 ? 3 : 0,
-                                }}
-                            >
-                                {CATEGORY_LABEL[book.category] ?? book.category}
-                            </div>
-                        )}
                     </div>
 
                     {/* Meta */}
@@ -1444,23 +1419,6 @@ function BookRow({
 
                         {/* Right meta */}
                         <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
-                            {book.category && (
-                                <span
-                                    className="hidden sm:inline-flex"
-                                    style={{
-                                        padding: "3px 10px",
-                                        borderRadius: 99,
-                                        fontSize: 11,
-                                        fontWeight: 500,
-                                        background: "#FFFDF9",
-                                        border: "1px solid var(--color-border)",
-                                        color: "var(--color-text-muted)",
-                                        whiteSpace: "nowrap",
-                                    }}
-                                >
-                                    {CATEGORY_LABEL[book.category] ?? book.category}
-                                </span>
-                            )}
                             {book.fileSize && (
                                 <span className="hidden sm:inline" style={{ fontSize: 12, color: "var(--color-text-faint)" }}>
                                     {formatBytes(book.fileSize)}
